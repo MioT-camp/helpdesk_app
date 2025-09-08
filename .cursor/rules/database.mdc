@@ -6,4 +6,415 @@ alwaysApply: true
 
 ## テーブル定義
 
+### FAQテーブル
+テーブル名: faqs
+| カラム名           | 型                       | 必須 | デフォルト | 説明                           |
+|-----------------|-------------------------|----|---------|-----------------------------|
+| faq_id          | BIGINT (AUTO INCREMENT) | ✅  |         | 主キー                         |
+| category_id     | BIGINT                  | ✅  |         | カテゴリID（外部キー）               |
+| question        | TEXT                    | ✅  |         | 質問文                         |
+| answer          | TEXT                    | ✅  |         | 回答文                         |
+| user_id         | BIGINT                  | ✅  |         | 登録者ID（外部キー）                |
+| count           | INT UNSIGNED            | ✅  | 0       | 閲覧回数                        |
+| is_active       | BOOLEAN                 | ✅  | 1       | 公開フラグ                       |
+| tags            | VARCHAR(255)            | ❌  | NULL    | 検索用タグ                       |
+| search_keywords | TEXT                    | ❌  | NULL    | 検索用統合テキスト                   |
+| priority        | TINYINT                 | ✅  | 1       | 優先度（1:低、2:中、3:高）           |
+| difficulty      | TINYINT                 | ✅  | 1       | 難易度（1:簡単、2:普通、3:難しい）       |
+| created_at      | TIMESTAMP               | ✅  |         | 登録日時                        |
+| updated_at      | TIMESTAMP               | ✅  |         | 更新日時                        |
+
+### テーブル名: inquiries
+| カラム名                | 型                       | 必須 | デフォルト    | 説明                              |
+|---------------------|-------------------------|----|-----------|---------------------------------|
+| inquiry_id          | BIGINT (AUTO INCREMENT) | ✅  |           | 主キー                             |
+| status              | ENUM                    | ✅  | 'pending' | 回答状況（pending/in_progress/completed/closed） |
+| received_at         | TIMESTAMP               | ✅  |           | 受信日時                            |
+| sender_email        | VARCHAR(255)            | ✅  |           | 送信元メールアドレス                      |
+| customer_id         | VARCHAR(100)            | ❌  | NULL      | 顧客ID（外部システムのID等）               |
+| prefecture          | VARCHAR(20)             | ❌  | NULL      | 都道府県                            |
+| user_attribute      | VARCHAR(50)             | ❌  | NULL      | ユーザー属性（個人/法人/代理店等）             |
+| category_id         | BIGINT                  | ❌  | NULL      | カテゴリID（外部キー、categoriesテーブル）   |
+| subject             | VARCHAR(500)            | ✅  |           | メールの件名                          |
+| summary             | TEXT                    | ❌  | NULL      | 要約（手動入力またはAI生成）               |
+| content             | LONGTEXT                | ✅  |           | メール本文                           |
+| response            | LONGTEXT                | ❌  | NULL      | 回答                              |
+| linked_faq_ids      | JSON                    | ❌  | NULL      | 紐付きFAQ IDの配列                   |
+| assigned_user_id    | BIGINT                  | ❌  | NULL      | 担当者ID（外部キー、usersテーブル）         |
+| created_user_id     | BIGINT                  | ✅  |           | 登録者ID（外部キー、usersテーブル）         |
+| priority            | TINYINT                 | ✅  | 2         | 優先度（1:低、2:中、3:高、4:緊急）         |
+| response_deadline   | TIMESTAMP               | ❌  | NULL      | 回答期限                            |
+| first_response_at   | TIMESTAMP               | ❌  | NULL      | 初回回答日時                          |
+| completed_at        | TIMESTAMP               | ❌  | NULL      | 完了日時                            |
+| search_keywords     | TEXT                    | ❌  | NULL      | 検索用統合テキスト                       |
+| attachments         | JSON                    | ❌  | NULL      | 添付ファイル情報                        |
+| created_at          | TIMESTAMP               | ✅  |           | 登録日時                            |
+| updated_at          | TIMESTAMP               | ✅  |           | 更新日時                            |
+
+### categoriesテーブル
+| カラム名     | 型              | 必須 | 説明        |
+|----------|---------------|----| --------- |
+| id       | BIGINT (AI)   | ✅  | 主キー       |
+| name     | VARCHAR(100)  | ✅  | カテゴリ名     |
+| slug     | VARCHAR(100)  | ✅  | URL用スラッグ  |
+| color    | VARCHAR(7)    | ❌  | 表示色（HEX） |
+| is_active| BOOLEAN       | ✅  | 有効フラグ     |
+
+### inquiry_faqテーブル（問い合わせとFAQの紐付け）
+テーブル名: inquiry_faq
+| カラム名        | 型      | 必須 | 説明                    |
+|-------------|--------|----|-----------------------|
+| id          | BIGINT | ✅  | 主キー                   |
+| inquiry_id  | BIGINT | ✅  | 問い合わせID（外部キー）        |
+| faq_id      | BIGINT | ✅  | FAQ ID（外部キー）         |
+| relevance   | TINYINT| ❌  | 関連度（1-5）             |
+| linked_by   | BIGINT | ✅  | 紐付け実行者ID（外部キー）      |
+| created_at  | TIMESTAMP| ✅ | 紐付け日時                |
+
+### usersテーブル（ヘルプデスク拡張版）
+テーブル名: users
+| カラム名              | 型              | 必須 | デフォルト | 説明                    |
+|-------------------|---------------|----|---------|-----------------------|
+| id                | BIGINT (AI)   | ✅  |         | 主キー                   |
+| name              | VARCHAR(255)  | ✅  |         | 氏名                    |
+| email             | VARCHAR(255)  | ✅  |         | メールアドレス（ユニーク）        |
+| password          | VARCHAR(255)  | ✅  |         | パスワード（ハッシュ化）          |
+| role              | ENUM          | ✅  | 'staff' | 権限（admin/manager/staff） |
+| department        | VARCHAR(100)  | ❌  | NULL    | 所属部署                  |
+| specialties       | JSON          | ❌  | NULL    | 専門分野（システムA、B等）        |
+| is_active         | BOOLEAN       | ✅  | 1       | アクティブフラグ              |
+| last_login_at     | TIMESTAMP     | ❌  | NULL    | 最終ログイン日時              |
+| email_verified_at | TIMESTAMP     | ❌  | NULL    | メール認証日時               |
+| remember_token    | VARCHAR(100)  | ❌  | NULL    | ログイン記憶トークン            |
+| created_at        | TIMESTAMP     | ✅  |         | 登録日時                  |
+| updated_at        | TIMESTAMP     | ✅  |         | 更新日時                  |
+
+### inquiry_historiesテーブル
+テーブル名: inquiry_histories
+| カラム名        | 型              | 必須 | 説明                        |
+|-------------|---------------|----|-----------------------------|
+| id          | BIGINT (AI)   | ✅  | 主キー                       |
+| inquiry_id  | BIGINT        | ✅  | 問い合わせID（外部キー）            |
+| user_id     | BIGINT        | ✅  | 操作者ID（外部キー）              |
+| action      | VARCHAR(50)   | ✅  | アクション（created/updated/assigned等） |
+| field_name  | VARCHAR(100)  | ❌  | 変更されたフィールド名               |
+| old_value   | TEXT          | ❌  | 変更前の値                     |
+| new_value   | TEXT          | ❌  | 変更後の値                     |
+| comment     | TEXT          | ❌  | コメント                      |
+| created_at  | TIMESTAMP     | ✅  | 変更日時                      |
+
+### notificationsテーブル
+テーブル名: notifications
+| カラム名       | 型              | 必須 | 説明            |
+|------------ |---------------|----| ------------- |
+| id          | CHAR(36)      | ✅  | UUID主キー       |
+| type        | VARCHAR(255)  | ✅  | 通知タイプ         |
+| notifiable_type | VARCHAR(255) | ✅ | 通知対象モデル      |
+| notifiable_id   | BIGINT       | ✅ | 通知対象ID       |
+| data        | TEXT          | ✅  | 通知データ（JSON）   |
+| read_at     | TIMESTAMP     | ❌  | 既読日時          |
+| created_at  | TIMESTAMP     | ✅  | 作成日時          |
+| updated_at  | TIMESTAMP     | ✅  | 更新日時          |
+
+### faq_viewsテーブル
+テーブル名: faq_views
+| カラム名      | 型            | 必須 | 説明              |
+|-----------|-------------|----| --------------- |
+| id        | BIGINT (AI) | ✅  | 主キー             |
+| faq_id    | BIGINT      | ✅  | FAQ ID（外部キー）    |
+| user_id   | BIGINT      | ❌  | 閲覧者ID（外部キー、NULL可） |
+| ip_address| VARCHAR(45) | ❌  | IPアドレス          |
+| user_agent| TEXT        | ❌  | ユーザーエージェント      |
+| viewed_at | TIMESTAMP   | ✅  | 閲覧日時            |
+
+### system_settingsテーブル
+テーブル名: system_settings
+| カラム名    | 型              | 必須 | 説明        |
+|---------|---------------|----| --------- |
+| id      | BIGINT (AI)   | ✅  | 主キー       |
+| key     | VARCHAR(100)  | ✅  | 設定キー（ユニーク） |
+| value   | TEXT          | ❌  | 設定値       |
+| type    | VARCHAR(20)   | ✅  | データ型      |
+| description | VARCHAR(255) | ❌ | 説明        |
+| is_public   | BOOLEAN      | ✅ | 公開設定      |
+| created_at  | TIMESTAMP    | ✅ | 作成日時      |
+| updated_at  | TIMESTAMP    | ✅ | 更新日時      |
+
+### attachmentsテーブル
+テーブル名: attachments
+| カラム名          | 型              | 必須 | 説明                    |
+|---------------|---------------|----|-----------------------|
+| id            | BIGINT (AI)   | ✅  | 主キー                   |
+| attachable_type | VARCHAR(255) | ✅  | 関連モデル（Inquiry/FAQ等）   |
+| attachable_id | BIGINT        | ✅  | 関連モデルID               |
+| filename      | VARCHAR(255)  | ✅  | ファイル名                 |
+| original_name | VARCHAR(255)  | ✅  | 元のファイル名               |
+| mime_type     | VARCHAR(100)  | ✅  | MIMEタイプ               |
+| size          | BIGINT        | ✅  | ファイルサイズ（バイト）          |
+| path          | VARCHAR(500)  | ✅  | ファイルパス                |
+| uploaded_by   | BIGINT        | ✅  | アップロード者ID（外部キー）       |
+| created_at    | TIMESTAMP     | ✅  | 作成日時                  |
+| updated_at    | TIMESTAMP     | ✅  | 更新日時                  |
+
+### tagsテーブル
+テーブル名: tags
+| カラム名      | 型              | 必須 | 説明      |
+|-----------|---------------|----|---------|
+| id        | BIGINT (AI)   | ✅  | 主キー     |
+| name      | VARCHAR(50)   | ✅  | タグ名     |
+| slug      | VARCHAR(50)   | ✅  | スラッグ    |
+| color     | VARCHAR(7)    | ❌  | 表示色     |
+| is_active | BOOLEAN       | ✅  | 有効フラグ   |
+| created_at| TIMESTAMP     | ✅  | 作成日時    |
+| updated_at| TIMESTAMP     | ✅  | 更新日時    |
+
+### faq_tagテーブル
+テーブル名: faq_tag
+| カラム名   | 型      | 必須 | 説明           |
+|--------|-------|----|--------------|
+| id     | BIGINT| ✅  | 主キー          |
+| faq_id | BIGINT| ✅  | FAQ ID（外部キー） |
+| tag_id | BIGINT| ✅  | タグID（外部キー）  |
+
 ## シーディング
+
+### 1. 基本マスターデータ
+
+#### categoriesテーブル
+```php
+$categories = [
+    ['name' => 'Aシステム', 'slug' => 'system-a', 'color' => '#3B82F6', 'is_active' => true],
+    ['name' => 'Bシステム', 'slug' => 'system-b', 'color' => '#10B981', 'is_active' => true],
+    ['name' => 'システム全体', 'slug' => 'system-general', 'color' => '#8B5CF6', 'is_active' => true],
+    ['name' => '制度', 'slug' => 'policy', 'color' => '#F59E0B', 'is_active' => true],
+    ['name' => 'その他', 'slug' => 'others', 'color' => '#6B7280', 'is_active' => true],
+];
+```
+
+#### tagsテーブル
+```php
+$tags = [
+    ['name' => 'ログイン', 'slug' => 'login', 'color' => '#EF4444', 'is_active' => true],
+    ['name' => 'パスワード', 'slug' => 'password', 'color' => '#F97316', 'is_active' => true],
+    ['name' => 'データ', 'slug' => 'data', 'color' => '#84CC16', 'is_active' => true],
+    ['name' => 'エラー', 'slug' => 'error', 'color' => '#DC2626', 'is_active' => true],
+    ['name' => '操作方法', 'slug' => 'operation', 'color' => '#2563EB', 'is_active' => true],
+    ['name' => '設定', 'slug' => 'settings', 'color' => '#7C3AED', 'is_active' => true],
+    ['name' => 'メール', 'slug' => 'email', 'color' => '#0891B2', 'is_active' => true],
+    ['name' => '印刷', 'slug' => 'print', 'color' => '#059669', 'is_active' => true],
+];
+```
+
+#### usersテーブル（開発・テスト用）
+```php
+$users = [
+    [
+        'name' => '管理者 太郎',
+        'email' => 'admin@example.com',
+        'password' => Hash::make('password'),
+        'role' => 'admin',
+        'department' => '運用保守チーム',
+        'specialties' => json_encode(['システム全体', 'Aシステム', 'Bシステム']),
+        'is_active' => true,
+        'email_verified_at' => now(),
+    ],
+    [
+        'name' => 'マネージャー 花子',
+        'email' => 'manager@example.com',
+        'password' => Hash::make('password'),
+        'role' => 'manager',
+        'department' => '運用保守チーム',
+        'specialties' => json_encode(['制度', 'システム全体']),
+        'is_active' => true,
+        'email_verified_at' => now(),
+    ],
+    [
+        'name' => 'スタッフ 一郎',
+        'email' => 'staff1@example.com',
+        'password' => Hash::make('password'),
+        'role' => 'staff',
+        'department' => '運用保守チーム',
+        'specialties' => json_encode(['Aシステム']),
+        'is_active' => true,
+        'email_verified_at' => now(),
+    ],
+    [
+        'name' => 'スタッフ 二郎',
+        'email' => 'staff2@example.com',
+        'password' => Hash::make('password'),
+        'role' => 'staff',
+        'department' => '運用保守チーム',
+        'specialties' => json_encode(['Bシステム']),
+        'is_active' => true,
+        'email_verified_at' => now(),
+    ],
+];
+```
+
+### 2. FAQサンプルデータ
+
+#### faqsテーブル
+```php
+$faqs = [
+    // Aシステム関連
+    [
+        'category_id' => 1, // Aシステム
+        'question' => 'Aシステムにログインできません',
+        'answer' => 'ログインできない場合は以下を確認してください：\n1. ユーザーIDとパスワードが正しいか\n2. Caps Lockがオンになっていないか\n3. アカウントがロックされていないか\n\n上記を確認してもログインできない場合は、管理者にお問い合わせください。',
+        'user_id' => 1,
+        'tags' => 'ログイン,パスワード,エラー',
+        'priority' => 3,
+        'difficulty' => 1,
+        'count' => 45,
+    ],
+    [
+        'category_id' => 1,
+        'question' => 'Aシステムでデータが表示されません',
+        'answer' => 'データが表示されない場合は以下をご確認ください：\n1. 検索条件が適切に設定されているか\n2. 権限のあるデータかどうか\n3. システムメンテナンス中でないか\n\n解決しない場合は、スクリーンショットを添付してお問い合わせください。',
+        'user_id' => 3,
+        'tags' => 'データ,表示,エラー',
+        'priority' => 2,
+        'difficulty' => 2,
+        'count' => 32,
+    ],
+    
+    // Bシステム関連
+    [
+        'category_id' => 2, // Bシステム
+        'question' => 'Bシステムで印刷ができません',
+        'answer' => '印刷できない場合は以下を確認してください：\n1. プリンタの電源が入っているか\n2. 用紙がセットされているか\n3. プリンタドライバが正しくインストールされているか\n4. 印刷権限があるかどうか\n\n解決しない場合は、IT部門にお問い合わせください。',
+        'user_id' => 4,
+        'tags' => '印刷,エラー,設定',
+        'priority' => 2,
+        'difficulty' => 1,
+        'count' => 28,
+    ],
+    
+    // システム全体
+    [
+        'category_id' => 3, // システム全体
+        'question' => 'パスワードを忘れました',
+        'answer' => 'パスワードをお忘れの場合：\n1. ログイン画面の「パスワードを忘れた方」をクリック\n2. 登録されているメールアドレスを入力\n3. 送信されたメールのリンクからパスワードを再設定\n\nメールが届かない場合は、迷惑メールフォルダもご確認ください。',
+        'user_id' => 2,
+        'tags' => 'パスワード,ログイン,メール',
+        'priority' => 3,
+        'difficulty' => 1,
+        'count' => 67,
+    ],
+    
+    // 制度関連
+    [
+        'category_id' => 4, // 制度
+        'question' => '利用時間に制限はありますか？',
+        'answer' => 'システム利用時間について：\n• 平日：8:00 - 20:00\n• 土日祝日：利用不可\n• メンテナンス：毎月第2土曜日 13:00-17:00\n\n緊急時のアクセスが必要な場合は、事前に管理者までご連絡ください。',
+        'user_id' => 2,
+        'tags' => '制度,時間,メンテナンス',
+        'priority' => 1,
+        'difficulty' => 1,
+        'count' => 15,
+    ],
+];
+```
+
+### 3. 問い合わせサンプルデータ
+
+#### inquiriesテーブル
+```php
+$inquiries = [
+    [
+        'status' => 'completed',
+        'received_at' => now()->subDays(5),
+        'sender_email' => 'user1@customer.com',
+        'customer_id' => 'CUST001',
+        'prefecture' => '東京都',
+        'user_attribute' => '法人',
+        'category_id' => 1,
+        'subject' => 'Aシステムログインエラーについて',
+        'summary' => 'ログイン時にエラーメッセージが表示され、システムにアクセスできない状況',
+        'content' => 'いつもお世話になっております。\n本日朝からAシステムにログインしようとすると「認証エラー」というメッセージが表示され、システムにアクセスできません。\nユーザーIDとパスワードは間違いないと思うのですが、解決方法を教えてください。',
+        'response' => 'お問い合わせありがとうございます。\n確認したところ、アカウントが一時的にロックされていました。\nロックを解除いたしましたので、再度ログインをお試しください。\n\n今後同様の問題を避けるため、パスワード入力時はCaps Lockの状態もご確認ください。',
+        'assigned_user_id' => 3,
+        'created_user_id' => 1,
+        'priority' => 3,
+        'first_response_at' => now()->subDays(5)->addHours(2),
+        'completed_at' => now()->subDays(5)->addHours(3),
+    ],
+    [
+        'status' => 'in_progress',
+        'received_at' => now()->subDays(2),
+        'sender_email' => 'user2@customer.com',
+        'customer_id' => 'CUST002',
+        'prefecture' => '大阪府',
+        'user_attribute' => '個人',
+        'category_id' => 2,
+        'subject' => 'Bシステムでの印刷トラブル',
+        'summary' => 'Bシステムから印刷実行時にエラーが発生し印刷できない',
+        'content' => 'Bシステムで帳票を印刷しようとすると、「プリンタに接続できません」というエラーが出ます。\n他のアプリケーションからは正常に印刷できるのですが、Bシステムからだけ印刷できません。',
+        'assigned_user_id' => 4,
+        'created_user_id' => 2,
+        'priority' => 2,
+        'response_deadline' => now()->addDays(1),
+        'first_response_at' => now()->subDays(2)->addHours(4),
+    ],
+    [
+        'status' => 'pending',
+        'received_at' => now()->subHours(3),
+        'sender_email' => 'user3@customer.com',
+        'prefecture' => '神奈川県',
+        'user_attribute' => '代理店',
+        'category_id' => 3,
+        'subject' => 'システム全体の動作が重い',
+        'summary' => 'システム全体の応答速度が遅く業務に支障が出ている',
+        'content' => '昨日の午後から、すべてのシステムの動作が非常に重くなっています。\n画面の切り替えに時間がかかり、業務効率が大幅に低下しています。\n改善の見込みを教えてください。',
+        'created_user_id' => 1,
+        'priority' => 4,
+        'response_deadline' => now()->addHours(4),
+    ],
+];
+```
+
+### 4. システム設定サンプル
+
+#### system_settingsテーブル
+```php
+$settings = [
+    ['key' => 'app_name', 'value' => 'ヘルプデスクシステム', 'type' => 'string', 'description' => 'アプリケーション名', 'is_public' => true],
+    ['key' => 'default_response_time', 'value' => '24', 'type' => 'integer', 'description' => 'デフォルト回答時間（時間）', 'is_public' => false],
+    ['key' => 'max_file_size', 'value' => '10485760', 'type' => 'integer', 'description' => '最大ファイルサイズ（バイト）', 'is_public' => false],
+    ['key' => 'allowed_file_types', 'value' => 'jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx', 'type' => 'string', 'description' => '許可ファイル形式', 'is_public' => false],
+    ['key' => 'maintenance_mode', 'value' => 'false', 'type' => 'boolean', 'description' => 'メンテナンスモード', 'is_public' => true],
+    ['key' => 'contact_email', 'value' => 'helpdesk@example.com', 'type' => 'string', 'description' => '問い合わせ先メールアドレス', 'is_public' => true],
+];
+```
+
+### 5. 実行順序
+
+```php
+// database/seeders/DatabaseSeeder.php での実行順序
+public function run(): void
+{
+    $this->call([
+        CategorySeeder::class,      // 1. カテゴリ
+        TagSeeder::class,          // 2. タグ
+        UserSeeder::class,         // 3. ユーザー
+        SystemSettingSeeder::class, // 4. システム設定
+        FaqSeeder::class,          // 5. FAQ
+        InquirySeeder::class,      // 6. 問い合わせ
+        FaqTagSeeder::class,       // 7. FAQ-タグ紐付け
+        InquiryFaqSeeder::class,   // 8. 問い合わせ-FAQ紐付け
+        FaqViewSeeder::class,      // 9. FAQ閲覧履歴
+    ]);
+}
+```
+
+### 6. 環境別設定
+
+#### 本番環境
+- 管理者ユーザーのみ作成
+- サンプルデータは作成しない
+- システム設定のみ投入
+
+#### 開発・テスト環境
+- 全てのサンプルデータを作成
+- ダミーの問い合わせ・FAQ作成
+- テスト用ユーザー作成
