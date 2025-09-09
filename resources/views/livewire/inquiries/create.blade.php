@@ -35,7 +35,6 @@ $userAttributes = computed(fn() => ['個人', '法人', '代理店', '関連会�
 
 // 関連FAQ検索
 $relatedFaqs = computed(function () {
-    // デバッグ用: 最低限のテキストがあれば検索を実行
     $searchText = trim($this->subject . ' ' . $this->summary . ' ' . $this->content);
     if (strlen($searchText) < 3) {
         return collect();
@@ -47,7 +46,7 @@ $relatedFaqs = computed(function () {
 
 rules([
     'sender_email' => 'required|email|max:255',
-    'customer_id' => 'nullable|string|max:100',
+    'customer_id' => 'nullable|string|max:100|regex:/^[a-zA-Z0-9]+$/',
     'prefecture' => 'nullable|string|max:20',
     'user_attribute' => 'nullable|string|max:50',
     'category_id' => 'nullable|exists:categories,id',
@@ -109,26 +108,6 @@ $unlinkFaq = function ($faqId) {
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- ヘッダー -->
     <div class="mb-8">
-        <!-- デバッグ情報 -->
-        @if (session('debug'))
-            <div class="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
-                {{ session('debug') }}
-            </div>
-        @endif
-
-        @if (session('error'))
-            <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-                {{ session('error') }}
-            </div>
-        @endif
-
-        <!-- デバッグ情報（簡素化） -->
-        @if (app()->environment('local'))
-            <div class="mb-4 p-2 bg-gray-100 border border-gray-300 text-gray-600 rounded text-sm">
-                関連FAQ: {{ $this->relatedFaqs->count() }}件 | 展開中:
-                {{ $expanded_faq_id ? 'ID=' . $expanded_faq_id : 'なし' }}
-            </div>
-        @endif
 
         <div class="flex items-center justify-between">
             <div>
@@ -175,7 +154,7 @@ $unlinkFaq = function ($faqId) {
                     <div>
                         <label for="customer_id"
                             class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            顧客ID
+                            顧客ID <span class="text-gray-500 text-xs">(半角英数のみ)</span>
                         </label>
                         <input type="text" id="customer_id" wire:model="customer_id" placeholder="CUST001"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
@@ -301,8 +280,7 @@ $unlinkFaq = function ($faqId) {
                         <label for="subject" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             件名 <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" id="subject" wire:model.live="subject"
-                            placeholder="問い合わせの件名を入力してください"
+                        <input type="text" id="subject" wire:model.live="subject" placeholder="問い合わせの件名を入力してください"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                             required>
                         @error('subject')
