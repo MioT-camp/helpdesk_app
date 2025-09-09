@@ -104,6 +104,7 @@ class FAQ extends Model
         return $this->belongsToMany(Tag::class, 'faq_tag', 'faq_id', 'tag_id');
     }
 
+
     /**
      * 問い合わせとのリレーション
      */

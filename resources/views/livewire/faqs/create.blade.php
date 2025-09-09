@@ -130,9 +130,28 @@ $save = function () {
                     <label for="tags" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         タグ
                     </label>
-                    <input type="text" id="tags" wire:model="tags" placeholder="タグをカンマ区切りで入力（例：ログイン,パスワード,エラー）"
+                    <input type="text" id="tags" wire:model.live="tags"
+                        placeholder="タグをカンマ区切りで入力（例：ログイン,パスワード,エラー）"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">検索で使用されるタグをカンマ区切りで入力してください</p>
+
+                    <!-- タグプレビュー -->
+                    @if ($tags)
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">プレビュー:</p>
+                            <div class="flex flex-wrap gap-1">
+                                @foreach (explode(',', $tags) as $tag)
+                                    @if (trim($tag))
+                                        <span
+                                            class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                                            {{ trim($tag) }}
+                                        </span>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
                     @error('tags')
                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                     @enderror
