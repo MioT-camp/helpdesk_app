@@ -73,8 +73,22 @@ $resetFilters = function () {
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">問い合わせ管理</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">顧客からの問い合わせの管理と対応</p>
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">問い合わせ管理</h1>
+                <p class="mt-2 text-gray-600 dark:text-gray-400">顧客からの問い合わせの管理と対応</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="{{ route('inquiries.create') }}"
+                    class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    新規問い合わせ
+                </a>
+            </div>
+        </div>
     </div>
 
     <!-- 検索・フィルター -->
