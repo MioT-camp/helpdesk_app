@@ -19,6 +19,7 @@ Route::middleware(['auth'])->group(function () {
 
     // 問い合わせ管理
     Volt::route('inquiries', 'inquiries.index')->name('inquiries.index');
+    Volt::route('inquiries/create', 'inquiries.create')->name('inquiries.create');
     Volt::route('inquiries/{inquiry_id}', 'inquiries.show')->name('inquiries.show');
 
     // カテゴリ管理
