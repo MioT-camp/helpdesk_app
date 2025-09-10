@@ -6,13 +6,21 @@ use App\Models\FAQ;
 use App\Livewire\Actions\SearchRelatedFaqs;
 use function Livewire\Volt\{state, mount, computed, rules};
 
-state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'expanded_faq_id' => null]);
+state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'response_linked_faq_ids' => [], 'response_expanded_faq_id' => null]);
 
 rules([
     'response' => 'required|string',
     'status' => 'required|in:pending,in_progress,completed,closed',
     'assigned_user_id' => 'nullable|exists:users,id',
     'priority' => 'required|integer|between:1,4',
+    'edit_subject' => 'required|string|max:500',
+    'edit_summary' => 'nullable|string',
+    'edit_content' => 'required|string',
+    'edit_sender_email' => 'required|email|max:255',
+    'edit_customer_id' => 'nullable|string|max:100',
+    'edit_prefecture' => 'nullable|string|max:20',
+    'edit_user_attribute' => 'nullable|string|max:50',
+    'edit_category_id' => 'nullable|exists:categories,id',
 ]);
 
 mount(function ($inquiry_id) {
@@ -24,14 +32,42 @@ mount(function ($inquiry_id) {
     $this->status = $this->inquiry->status;
     $this->assigned_user_id = $this->inquiry->assigned_user_id;
     $this->priority = $this->inquiry->priority;
+
+    // 編集用フィールドの初期化
+    $this->edit_subject = $this->inquiry->subject;
+    $this->edit_summary = $this->inquiry->summary ?? '';
+    $this->edit_content = $this->inquiry->content;
+    $this->edit_sender_email = $this->inquiry->sender_email;
+    $this->edit_customer_id = $this->inquiry->customer_id ?? '';
+    $this->edit_prefecture = $this->inquiry->prefecture ?? '';
+    $this->edit_user_attribute = $this->inquiry->user_attribute ?? '';
+    $this->edit_category_id = $this->inquiry->category_id;
 });
 
 $users = computed(fn() => User::where('is_active', true)->get());
+$categories = computed(fn() => \App\Models\Category::active()->orderBy('name')->get());
+
+// 都道府県リスト
+$prefectures = computed(fn() => ['北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県', '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県', '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県', '鳥取県', '島根県', '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県']);
+
+// ユーザー属性リスト
+$userAttributes = computed(fn() => ['個人', '法人', '代理店', '関連会社', 'その他']);
 
 // 関連FAQ検索
 $relatedFaqs = computed(function () {
     $searchAction = new SearchRelatedFaqs();
     return $searchAction->execute($this->inquiry->subject, $this->inquiry->summary, $this->inquiry->content, $this->inquiry->category_id, 5);
+});
+
+// 回答内容に基づく関連FAQ検索
+$responseRelatedFaqs = computed(function () {
+    $responseText = trim($this->response);
+    if (strlen($responseText) < 3) {
+        return collect();
+    }
+
+    $searchAction = new SearchRelatedFaqs();
+    return $searchAction->execute('', '', $responseText, $this->inquiry->category_id, 5);
 });
 
 $updateStatus = function () {
@@ -107,7 +143,101 @@ $saveResponse = function () {
 
     $this->inquiry->update($updateData);
 
+    // 回答時に選択されたFAQを紐付け
+    if (!empty($this->response_linked_faq_ids)) {
+        $pivotData = [];
+        foreach ($this->response_linked_faq_ids as $faqId) {
+            $pivotData[$faqId] = [
+                'relevance' => 5, // 回答時の紐付けは高い関連度
+                'linked_by' => auth()->id(),
+                'created_at' => now(),
+            ];
+        }
+
+        // 既存の紐付けと重複しないように、存在しないもののみ追加
+        $existingFaqIds = $this->inquiry->faqs()->pluck('faqs.faq_id')->toArray();
+        $newFaqIds = array_diff($this->response_linked_faq_ids, $existingFaqIds);
+
+        if (!empty($newFaqIds)) {
+            $newPivotData = [];
+            foreach ($newFaqIds as $faqId) {
+                $newPivotData[$faqId] = $pivotData[$faqId];
+            }
+            $this->inquiry->faqs()->attach($newPivotData);
+        }
+
+        // linked_faq_idsも更新
+        $allLinkedFaqIds = array_unique(array_merge($this->inquiry->linked_faq_ids ?? [], $this->response_linked_faq_ids));
+        $this->inquiry->update(['linked_faq_ids' => $allLinkedFaqIds]);
+    }
+
     session()->flash('message', '回答を保存しました。');
+};
+
+// 編集モードの制御
+$startEditing = function () {
+    $this->editing_mode = true;
+    // 編集開始時に最新の値を設定
+    $this->edit_subject = $this->inquiry->subject;
+    $this->edit_summary = $this->inquiry->summary ?? '';
+    $this->edit_content = $this->inquiry->content;
+    $this->edit_sender_email = $this->inquiry->sender_email;
+    $this->edit_customer_id = $this->inquiry->customer_id ?? '';
+    $this->edit_prefecture = $this->inquiry->prefecture ?? '';
+    $this->edit_user_attribute = $this->inquiry->user_attribute ?? '';
+    $this->edit_category_id = $this->inquiry->category_id;
+};
+
+$cancelEditing = function () {
+    $this->editing_mode = false;
+    $this->resetValidation();
+};
+
+$saveInquiryEdit = function () {
+    $this->validate([
+        'edit_subject' => 'required|string|max:500',
+        'edit_summary' => 'nullable|string',
+        'edit_content' => 'required|string',
+        'edit_sender_email' => 'required|email|max:255',
+        'edit_customer_id' => 'nullable|string|max:100',
+        'edit_prefecture' => 'nullable|string|max:20',
+        'edit_user_attribute' => 'nullable|string|max:50',
+        'edit_category_id' => 'nullable|exists:categories,id',
+    ]);
+
+    $this->inquiry->update([
+        'subject' => $this->edit_subject,
+        'summary' => $this->edit_summary ?: null,
+        'content' => $this->edit_content,
+        'sender_email' => $this->edit_sender_email,
+        'customer_id' => $this->edit_customer_id ?: null,
+        'prefecture' => $this->edit_prefecture ?: null,
+        'user_attribute' => $this->edit_user_attribute ?: null,
+        'category_id' => $this->edit_category_id ?: null,
+    ]);
+
+    $this->editing_mode = false;
+    session()->flash('message', '問い合わせ内容を更新しました。');
+};
+
+// 回答用FAQ関連のメソッド
+$toggleResponseFaqExpansion = function ($faqId) {
+    if ($this->response_expanded_faq_id === $faqId) {
+        $this->response_expanded_faq_id = null;
+    } else {
+        $this->response_expanded_faq_id = $faqId;
+    }
+};
+
+$linkResponseFaq = function ($faqId) {
+    if (!in_array($faqId, $this->response_linked_faq_ids)) {
+        $this->response_linked_faq_ids[] = $faqId;
+    }
+};
+
+$unlinkResponseFaq = function ($faqId) {
+    $this->response_linked_faq_ids = array_filter($this->response_linked_faq_ids, fn($id) => $id != $faqId);
+    $this->response_linked_faq_ids = array_values($this->response_linked_faq_ids);
 };
 
 ?>
@@ -149,12 +279,136 @@ $saveResponse = function () {
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div class="flex items-start justify-between">
-                        <div>
-                            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $inquiry->subject }}</h1>
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせ ID:
-                                #{{ $inquiry->inquiry_id }}</p>
+                        <div class="flex-1">
+                            @if ($editing_mode)
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            件名 <span class="text-red-500">*</span>
+                                        </label>
+                                        <input type="text" wire:model="edit_subject"
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                                            placeholder="件名を入力してください">
+                                        @error('edit_subject')
+                                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            送信者メールアドレス <span class="text-red-500">*</span>
+                                        </label>
+                                        <input type="email" wire:model="edit_sender_email"
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                                            placeholder="メールアドレスを入力してください">
+                                        @error('edit_sender_email')
+                                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label
+                                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                顧客ID
+                                            </label>
+                                            <input type="text" wire:model="edit_customer_id"
+                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                                                placeholder="顧客IDを入力してください">
+                                            @error('edit_customer_id')
+                                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                カテゴリ
+                                            </label>
+                                            <select wire:model="edit_category_id"
+                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                                                <option value="">カテゴリを選択してください</option>
+                                                @foreach ($this->categories as $category)
+                                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('edit_category_id')
+                                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label
+                                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                都道府県
+                                            </label>
+                                            <select wire:model="edit_prefecture"
+                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                                                <option value="">都道府県を選択してください</option>
+                                                @foreach ($this->prefectures as $prefecture)
+                                                    <option value="{{ $prefecture }}">{{ $prefecture }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('edit_prefecture')
+                                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                ユーザー属性
+                                            </label>
+                                            <select wire:model="edit_user_attribute"
+                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                                                <option value="">ユーザー属性を選択してください</option>
+                                                @foreach ($this->userAttributes as $attribute)
+                                                    <option value="{{ $attribute }}">{{ $attribute }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('edit_user_attribute')
+                                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center gap-2 pt-4">
+                                        <button wire:click="saveInquiryEdit"
+                                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                                            保存
+                                        </button>
+                                        <button wire:click="cancelEditing"
+                                            class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                                            キャンセル
+                                        </button>
+                                    </div>
+                                </div>
+                            @else
+                                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $inquiry->subject }}
+                                </h1>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせ ID:
+                                    #{{ $inquiry->inquiry_id }}</p>
+                            @endif
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 ml-4">
+                            @if (!$editing_mode)
+                                <button wire:click="startEditing"
+                                    class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                                    <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                        </path>
+                                    </svg>
+                                    編集
+                                </button>
+                            @endif
                             @switch($inquiry->status)
                                 @case('pending')
                                     <span
@@ -188,20 +442,46 @@ $saveResponse = function () {
                     </div>
                 </div>
 
-                @if ($inquiry->summary)
+                @if ($editing_mode)
                     <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                        <h3 class="text-md font-medium text-gray-900 dark:text-white mb-3">要約</h3>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            要約
+                        </label>
+                        <textarea wire:model="edit_summary" rows="3"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            placeholder="要約を入力してください（任意）"></textarea>
+                        @error('edit_summary')
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div class="px-6 py-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            問い合わせ内容 <span class="text-red-500">*</span>
+                        </label>
+                        <textarea wire:model="edit_content" rows="8"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            placeholder="問い合わせ内容を入力してください"></textarea>
+                        @error('edit_content')
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+                @else
+                    @if ($inquiry->summary)
+                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                            <h3 class="text-md font-medium text-gray-900 dark:text-white mb-3">要約</h3>
+                            <div class="prose dark:prose-invert max-w-none">
+                                {!! nl2br(e($inquiry->summary)) !!}
+                            </div>
+                        </div>
+                    @endif
+
+                    <div class="px-6 py-6">
                         <div class="prose dark:prose-invert max-w-none">
-                            {!! nl2br(e($inquiry->summary)) !!}
+                            {!! nl2br(e($inquiry->content)) !!}
                         </div>
                     </div>
                 @endif
-
-                <div class="px-6 py-6">
-                    <div class="prose dark:prose-invert max-w-none">
-                        {!! nl2br(e($inquiry->content)) !!}
-                    </div>
-                </div>
             </div>
 
             <!-- 問い合わせ情報 -->
@@ -332,13 +612,108 @@ $saveResponse = function () {
                         <label for="response" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             回答内容 <span class="text-red-500">*</span>
                         </label>
-                        <textarea id="response" wire:model="response" rows="6" placeholder="回答内容を入力してください"
+                        <textarea id="response" wire:model.live="response" rows="6" placeholder="回答内容を入力してください"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                             required></textarea>
                         @error('response')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    <!-- 回答に基づく関連FAQ -->
+                    @if ($this->responseRelatedFaqs->isNotEmpty())
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                                関連FAQ（回答内容に基づく）
+                            </h4>
+                            <div class="space-y-3">
+                                @foreach ($this->responseRelatedFaqs as $faq)
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex-1">
+                                                <button wire:click="toggleResponseFaqExpansion({{ $faq->faq_id }})"
+                                                    class="text-left w-full">
+                                                    <h5
+                                                        class="text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
+                                                        {{ $faq->question }}
+                                                    </h5>
+                                                </button>
+
+                                                @if ($faq->category)
+                                                    <span
+                                                        class="inline-flex items-center px-2 py-0.5 rounded text-xs mt-1"
+                                                        style="background-color: {{ $faq->category->color ?? '#6B7280' }}20; color: {{ $faq->category->color ?? '#6B7280' }}">
+                                                        {{ $faq->category->name }}
+                                                    </span>
+                                                @endif
+                                            </div>
+
+                                            <div class="flex items-center gap-2 ml-3">
+                                                @if (in_array($faq->faq_id, $response_linked_faq_ids))
+                                                    <button wire:click="unlinkResponseFaq({{ $faq->faq_id }})"
+                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                                                        <svg class="w-3 h-3 mr-1" fill="none"
+                                                            stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                        </svg>
+                                                        紐付け済み
+                                                    </button>
+                                                @else
+                                                    <button wire:click="linkResponseFaq({{ $faq->faq_id }})"
+                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
+                                                        <svg class="w-3 h-3 mr-1" fill="none"
+                                                            stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                                        </svg>
+                                                        紐付け
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        @if ($response_expanded_faq_id === $faq->faq_id)
+                                            <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                <div
+                                                    class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                                                    {{ $faq->answer }}
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    <!-- 紐付け済みFAQ（回答用） -->
+                    @if (count($response_linked_faq_ids) > 0)
+                        <div
+                            class="border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900 rounded-lg p-4">
+                            <h4 class="text-sm font-medium text-green-800 dark:text-green-200 mb-3">回答時に紐付けるFAQ</h4>
+                            <div class="space-y-2">
+                                @foreach ($response_linked_faq_ids as $faqId)
+                                    @php $faq = FAQ::with(['category'])->find($faqId) @endphp
+                                    @if ($faq)
+                                        <div
+                                            class="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-md">
+                                            <span
+                                                class="text-sm text-gray-900 dark:text-white truncate">{{ $faq->question }}</span>
+                                            <button wire:click="unlinkResponseFaq({{ $faqId }})"
+                                                class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                        stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
 
                     <!-- ステータス -->
                     <div>
