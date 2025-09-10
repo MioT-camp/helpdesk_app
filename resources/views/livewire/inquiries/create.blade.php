@@ -79,6 +79,19 @@ $save = function () {
         'linked_faq_ids' => $this->linked_faq_ids,
     ]);
 
+    // FAQ紐付けをinquiry_faqテーブルに保存
+    if (!empty($this->linked_faq_ids)) {
+        $pivotData = [];
+        foreach ($this->linked_faq_ids as $faqId) {
+            $pivotData[$faqId] = [
+                'relevance' => 5, // デフォルト関連度
+                'linked_by' => auth()->id(),
+                'created_at' => now(),
+            ];
+        }
+        $inquiry->faqs()->attach($pivotData);
+    }
+
     session()->flash('status', '問い合わせを登録しました。');
 
     return redirect()->route('inquiries.show', ['inquiry_id' => $inquiry->inquiry_id]);

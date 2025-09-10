@@ -147,8 +147,7 @@ class Inquiry extends Model
     public function faqs(): BelongsToMany
     {
         return $this->belongsToMany(FAQ::class, 'inquiry_faq', 'inquiry_id', 'faq_id')
-            ->withPivot('relevance', 'linked_by')
-            ->withTimestamps();
+            ->withPivot('relevance', 'linked_by', 'created_at');
     }
 
     /**

@@ -3,7 +3,7 @@
 use App\Models\FAQ;
 use App\Models\Inquiry;
 use App\Models\Category;
-use function Livewire\Volt\{computed};
+use function Livewire\Volt\{computed, state, mount};
 
 $stats = computed(function () {
     return [
@@ -32,13 +32,26 @@ $popularFaqs = computed(function () {
         ->get();
 });
 
-$hotFaqs = computed(function () {
-    return FAQ::with(['category', 'user'])
+// ホットFAQは状態として管理し、毎回更新
+state(['hotFaqs' => []]);
+
+mount(function () {
+    $this->loadHotFaqs();
+});
+
+$loadHotFaqs = function () {
+    $this->hotFaqs = FAQ::with(['category', 'user'])
         ->where('is_active', true)
         ->hot()
         ->limit(5)
-        ->get();
-});
+        ->get()
+        ->map(function ($faq) {
+            if (!isset($faq->hot_count)) {
+                $faq->hot_count = 0;
+            }
+            return $faq;
+        });
+};
 
 ?>
 
@@ -196,14 +209,20 @@ $hotFaqs = computed(function () {
                             ホットなFAQ
                             <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-2">（直近1ヶ月の紐付け件数）</span>
                         </h2>
-                        <a href="{{ route('faqs.index') }}"
-                            class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                            すべて表示
-                        </a>
+                        <div class="flex space-x-2">
+                            <button wire:click="loadHotFaqs"
+                                class="text-sm text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300">
+                                更新
+                            </button>
+                            <a href="{{ route('faqs.index') }}"
+                                class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                                すべて表示
+                            </a>
+                        </div>
                     </div>
                 </div>
                 <div class="p-6">
-                    @forelse($this->hotFaqs as $faq)
+                    @forelse($hotFaqs as $faq)
                         <div
                             class="flex items-start space-x-3 {{ !$loop->last ? 'mb-4 pb-4 border-b border-gray-200 dark:border-gray-700' : '' }}">
                             <div class="flex-shrink-0">
