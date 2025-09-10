@@ -239,7 +239,7 @@ class Inquiry extends Model
 
         return $query->where(function ($q) use ($keywords) {
             foreach ($keywords as $k) {
-                $q->where(function ($subQ) use ($k) {
+                $q->orWhere(function ($subQ) use ($k) {
                     $subQ->where('subject', 'like', "%{$k}%")
                         ->orWhere('content', 'like', "%{$k}%")
                         ->orWhere('summary', 'like', "%{$k}%")

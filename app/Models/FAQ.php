@@ -186,7 +186,7 @@ class FAQ extends Model
 
         return $query->where(function ($q) use ($keywords) {
             foreach ($keywords as $k) {
-                $q->where(function ($subQ) use ($k) {
+                $q->orWhere(function ($subQ) use ($k) {
                     $subQ->where('question', 'like', "%{$k}%")
                         ->orWhere('answer', 'like', "%{$k}%")
                         ->orWhere('tags', 'like', "%{$k}%")

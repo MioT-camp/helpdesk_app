@@ -89,7 +89,7 @@ class SearchRelatedFaqs
      */
     private function extractKeywords(string $text): array
     {
-        // 日本語の単語分割（簡易版）
+        // 日本語の単語分割（改良版）
         $text = mb_strtolower($text);
 
         // 不要な文字を除去
@@ -98,68 +98,90 @@ class SearchRelatedFaqs
         // 空白で分割
         $words = preg_split('/\s+/', $text);
 
-        // 2文字以上の単語のみを抽出
-        $keywords = array_filter($words, function ($word) {
+        // 全ての単語を基本キーワードとして収集
+        $baseKeywords = array_filter($words, function ($word) {
             return mb_strlen($word) >= 2;
         });
 
-        // 頻出する単語を除外
+        // 日本語の語幹を抽出（改良版）
+        $expandedKeywords = [];
+        foreach ($baseKeywords as $word) {
+            $expandedKeywords[] = $word;
+
+            // 段階的に語尾を削って語幹を抽出
+            $currentWord = $word;
+
+            // 長い語尾から順に削除
+            $suffixes = [
+                'がうまくいきません',
+                'ができません',
+                'がうまくいかない',
+                'ができない',
+                'について',
+                'できません',
+                'できない',
+                'します',
+                'しない',
+                'ます',
+                'ません',
+                'です',
+                'でした',
+                'が',
+                'を',
+                'に',
+                'で',
+                'は',
+                'と',
+                'から',
+                'まで'
+            ];
+
+            foreach ($suffixes as $suffix) {
+                if (mb_strlen($currentWord) > mb_strlen($suffix) + 1) {
+                    $pattern = '/' . preg_quote($suffix, '/') . '$/';
+                    $stem = preg_replace($pattern, '', $currentWord);
+                    if ($stem !== $currentWord && mb_strlen($stem) >= 2) {
+                        $expandedKeywords[] = $stem;
+                        $currentWord = $stem; // 続けて短縮
+                    }
+                }
+            }
+        }
+
+        // 頻出する単語を除外（助詞のみに限定）
         $stopWords = [
             'について',
             'です',
             'ます',
-            'です',
-            'でした',
-            'でした',
-            'です',
-            'ます',
             'する',
             'した',
             'して',
             'される',
-            'される',
-            'する',
-            'した',
-            'して',
             'ある',
             'いる',
             'ない',
-            'ない',
-            'ある',
-            'いる',
-            'ない',
-            'ない',
-            'です',
-            'ます',
-            'です',
-            'ます',
-            'です',
-            'ます',
-            'です',
-            'ます',
             'お',
             'ご',
             'の',
             'を',
             'に',
             'は',
-            'が',
             'で',
             'と',
             'から',
             'まで'
         ];
 
-        $filteredKeywords = array_filter($keywords, function ($word) use ($stopWords) {
-            return !in_array($word, $stopWords);
+        $filteredKeywords = array_filter(array_unique($expandedKeywords), function ($word) use ($stopWords) {
+            return !in_array($word, $stopWords) && mb_strlen($word) >= 2;
         });
 
-        // キーワードが少ない場合は、より緩い条件で検索
+        // キーワードが少ない場合は、元の単語も含める
         if (count($filteredKeywords) < 2) {
-            return array_slice($keywords, 0, 3); // 最初の3つの単語を使用
+            return array_unique(array_merge($filteredKeywords, array_slice($baseKeywords, 0, 3)));
         }
 
-        return $filteredKeywords;
+        return array_values($filteredKeywords);
     }
 
     /**
