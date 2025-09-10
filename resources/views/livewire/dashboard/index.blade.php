@@ -32,6 +32,14 @@ $popularFaqs = computed(function () {
         ->get();
 });
 
+$hotFaqs = computed(function () {
+    return FAQ::with(['category', 'user'])
+        ->where('is_active', true)
+        ->hot()
+        ->limit(5)
+        ->get();
+});
+
 ?>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -174,11 +182,78 @@ $popularFaqs = computed(function () {
                 </div>
             </div>
 
+            <!-- ホットなFAQ -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-8">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+                            </svg>
+                            ホットなFAQ
+                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-2">（直近1ヶ月の紐付け件数）</span>
+                        </h2>
+                        <a href="{{ route('faqs.index') }}"
+                            class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            すべて表示
+                        </a>
+                    </div>
+                </div>
+                <div class="p-6">
+                    @forelse($this->hotFaqs as $faq)
+                        <div
+                            class="flex items-start space-x-3 {{ !$loop->last ? 'mb-4 pb-4 border-b border-gray-200 dark:border-gray-700' : '' }}">
+                            <div class="flex-shrink-0">
+                                <div
+                                    class="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                                    <span
+                                        class="text-xs font-medium text-red-600 dark:text-red-400">{{ $loop->iteration }}</span>
+                                </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    <a href="{{ route('faqs.show', $faq->faq_id) }}"
+                                        class="hover:text-blue-600 dark:hover:text-blue-400">
+                                        {{ $faq->question }}
+                                    </a>
+                                </p>
+                                <div class="flex items-center mt-1">
+                                    @if ($faq->category)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs"
+                                            style="background-color: {{ $faq->category->color ?? '#6B7280' }}20; color: {{ $faq->category->color ?? '#6B7280' }}">
+                                            {{ $faq->category->name }}
+                                        </span>
+                                    @endif
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                                        {{ number_format($faq->hot_count ?? 0) }} 件の紐付け
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-gray-500 dark:text-gray-400 text-center py-4">ホットなFAQがありません</p>
+                    @endforelse
+                </div>
+            </div>
+
             <!-- 人気のFAQ -->
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">人気のFAQ</h2>
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            人気のFAQ
+                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-2">（総閲覧数）</span>
+                        </h2>
                         <a href="{{ route('faqs.index') }}"
                             class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
                             すべて表示

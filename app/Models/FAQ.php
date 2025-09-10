@@ -164,6 +164,47 @@ class FAQ extends Model
     }
 
     /**
+     * ホットFAQランキングのスコープ（直近1ヶ月の紐付け件数順）
+     */
+    public function scopeHot($query)
+    {
+        return $query->select([
+            'faqs.faq_id',
+            'faqs.category_id',
+            'faqs.question',
+            'faqs.answer',
+            'faqs.user_id',
+            'faqs.count',
+            'faqs.is_active',
+            'faqs.tags',
+            'faqs.search_keywords',
+            'faqs.priority',
+            'faqs.difficulty',
+            'faqs.created_at',
+            'faqs.updated_at'
+        ])
+            ->selectRaw('COALESCE(COUNT(CASE WHEN inquiries.received_at >= ? THEN inquiry_faq.faq_id END), 0) as hot_count', [now()->subMonth()])
+            ->leftJoin('inquiry_faq', 'faqs.faq_id', '=', 'inquiry_faq.faq_id')
+            ->leftJoin('inquiries', 'inquiry_faq.inquiry_id', '=', 'inquiries.inquiry_id')
+            ->groupBy([
+                'faqs.faq_id',
+                'faqs.category_id',
+                'faqs.question',
+                'faqs.answer',
+                'faqs.user_id',
+                'faqs.count',
+                'faqs.is_active',
+                'faqs.tags',
+                'faqs.search_keywords',
+                'faqs.priority',
+                'faqs.difficulty',
+                'faqs.created_at',
+                'faqs.updated_at'
+            ])
+            ->orderByDesc('hot_count');
+    }
+
+    /**
      * 最新順のスコープ
      */
     public function scopeLatest($query)
