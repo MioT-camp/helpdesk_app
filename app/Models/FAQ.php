@@ -111,8 +111,7 @@ class FAQ extends Model
     public function inquiries(): BelongsToMany
     {
         return $this->belongsToMany(Inquiry::class, 'inquiry_faq', 'faq_id', 'inquiry_id')
-            ->withPivot('relevance', 'linked_by')
-            ->withTimestamps();
+            ->withPivot('relevance', 'linked_by', 'created_at');
     }
 
     /**
@@ -183,9 +182,8 @@ class FAQ extends Model
             'faqs.created_at',
             'faqs.updated_at'
         ])
-            ->selectRaw('COALESCE(COUNT(CASE WHEN inquiries.received_at >= ? THEN inquiry_faq.faq_id END), 0) as hot_count', [now()->subMonth()])
+            ->selectRaw('COALESCE(COUNT(CASE WHEN inquiry_faq.created_at >= ? THEN inquiry_faq.faq_id END), 0) as hot_count', [now()->subMonth()])
             ->leftJoin('inquiry_faq', 'faqs.faq_id', '=', 'inquiry_faq.faq_id')
-            ->leftJoin('inquiries', 'inquiry_faq.inquiry_id', '=', 'inquiries.inquiry_id')
             ->groupBy([
                 'faqs.faq_id',
                 'faqs.category_id',
@@ -255,5 +253,23 @@ class FAQ extends Model
             return [];
         }
         return array_map('trim', explode(',', $this->tags));
+    }
+
+    /**
+     * 紐付け件数を取得
+     */
+    public function getLinkedInquiriesCountAttribute(): int
+    {
+        return $this->inquiries()->count();
+    }
+
+    /**
+     * 直近1ヶ月の紐付け件数を取得
+     */
+    public function getRecentLinkedInquiriesCountAttribute(): int
+    {
+        return $this->inquiries()
+            ->wherePivot('created_at', '>=', now()->subMonth())
+            ->count();
     }
 }

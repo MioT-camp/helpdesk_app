@@ -6,7 +6,17 @@ use function Livewire\Volt\{state, mount};
 state(['faq']);
 
 mount(function ($faq_id) {
-    $this->faq = FAQ::with(['category', 'user', 'tagRelations'])
+    $this->faq = FAQ::with([
+        'category',
+        'user',
+        'tagRelations',
+        'inquiries' => function ($query) {
+            $query
+                ->with(['category', 'assignedUser'])
+                ->orderByPivot('created_at', 'desc')
+                ->limit(10);
+        },
+    ])
         ->where('faq_id', $faq_id)
         ->firstOrFail();
 
@@ -89,6 +99,9 @@ mount(function ($faq_id) {
                         <span class="text-sm text-gray-500 dark:text-gray-400">
                             閲覧数: {{ number_format($faq->count) }}
                         </span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                            紐付け件数: {{ number_format($faq->linked_inquiries_count) }}
+                        </span>
                     </div>
                 </div>
 
@@ -169,9 +182,103 @@ mount(function ($faq_id) {
         </div>
     </div>
 
-    <!-- 関連FAQ（今後実装予定） -->
-    <div class="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">関連するFAQ</h2>
-        <p class="text-gray-500 dark:text-gray-400">関連するFAQの表示機能は今後実装予定です。</p>
+    <!-- 紐づけられた問い合わせ -->
+    <div class="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">紐づけられた問い合わせ</h2>
+                <span class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ number_format($faq->linked_inquiries_count) }}件
+                </span>
+            </div>
+        </div>
+        <div class="p-6">
+            @forelse($faq->inquiries as $inquiry)
+                <div
+                    class="flex items-start space-x-4 {{ !$loop->last ? 'mb-6 pb-6 border-b border-gray-200 dark:border-gray-700' : '' }}">
+                    <!-- ステータスインジケーター -->
+                    <div class="flex-shrink-0 mt-1">
+                        @switch($inquiry->status)
+                            @case('pending')
+                                <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                            @break
+
+                            @case('in_progress')
+                                <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                            @break
+
+                            @case('completed')
+                                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                            @break
+
+                            @case('closed')
+                                <div class="w-3 h-3 bg-gray-500 rounded-full"></div>
+                            @break
+                        @endswitch
+                    </div>
+
+                    <div class="flex-1 min-w-0">
+                        <!-- 件名とリンク -->
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                            <a href="{{ route('inquiries.show', $inquiry->inquiry_id) }}"
+                                class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                {{ $inquiry->subject }}
+                            </a>
+                        </h3>
+
+                        <!-- メタ情報 -->
+                        <div class="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+                            <span>ID: #{{ $inquiry->inquiry_id }}</span>
+
+                            @if ($inquiry->category)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs"
+                                    style="background-color: {{ $inquiry->category->color ?? '#6B7280' }}20; color: {{ $inquiry->category->color ?? '#6B7280' }}">
+                                    {{ $inquiry->category->name }}
+                                </span>
+                            @endif
+
+                            <span
+                                class="inline-flex items-center px-2 py-0.5 rounded text-xs
+                                @switch($inquiry->status)
+                                    @case('pending') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
+                                    @case('in_progress') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 @break
+                                    @case('completed') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 @break
+                                    @case('closed') bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 @break
+                                @endswitch">
+                                {{ $inquiry->status_label }}
+                            </span>
+
+                            <span>{{ $inquiry->received_at->format('Y/m/d H:i') }}</span>
+
+                            @if ($inquiry->assignedUser)
+                                <span>担当: {{ $inquiry->assignedUser->name }}</span>
+                            @endif
+
+                            <span>紐付け: {{ $inquiry->pivot->created_at->format('Y/m/d H:i') }}</span>
+                        </div>
+
+                        <!-- 送信者情報 -->
+                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            送信者: {{ $inquiry->sender_email }}
+                            @if ($inquiry->customer_id)
+                                ({{ $inquiry->customer_id }})
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                @empty
+                    <div class="text-center py-8">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 48 48">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 14v20c0 4.418 7.163 8 16 8 1.381 0 2.721-.087 4-.252M8 14c0 4.418 7.163 8 16 8s16-3.582 16-8M8 14c0-4.418 7.163-8 16-8s16 3.582 16 8m0 0v14m-16-4h.01M32 18h.01" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">紐づけられた問い合わせがありません</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            このFAQはまだ問い合わせと紐づけられていません。
+                        </p>
+                    </div>
+                @endforelse
+            </div>
+        </div>
     </div>
-</div>
