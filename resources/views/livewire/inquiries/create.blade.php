@@ -281,6 +281,7 @@ $unlinkFaq = function ($faqId) {
                             件名 <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="subject" wire:model.live="subject" placeholder="問い合わせの件名を入力してください"
+                            x-on:paste="$nextTick(() => $wire.set('subject', $event.target.value))"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                             required>
                         @error('subject')
@@ -294,6 +295,7 @@ $unlinkFaq = function ($faqId) {
                             要約
                         </label>
                         <textarea id="summary" wire:model.live="summary" rows="3" placeholder="問い合わせ内容の要約（任意）"
+                            x-on:paste="$nextTick(() => $wire.set('summary', $event.target.value))"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"></textarea>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせ内容の簡潔な要約を入力してください。</p>
                         @error('summary')
@@ -307,6 +309,7 @@ $unlinkFaq = function ($faqId) {
                             詳細内容 <span class="text-red-500">*</span>
                         </label>
                         <textarea id="content" wire:model.live="content" rows="8" placeholder="問い合わせの詳細内容を入力してください"
+                            x-on:paste="$nextTick(() => $wire.set('content', $event.target.value))"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                             required></textarea>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問題の詳細、エラーメッセージ、発生状況などを具体的に記載してください。

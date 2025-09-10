@@ -229,12 +229,25 @@ class Inquiry extends Model
      */
     public function scopeSearch($query, string $keyword)
     {
-        return $query->where(function ($q) use ($keyword) {
-            $q->where('subject', 'like', "%{$keyword}%")
-                ->orWhere('content', 'like', "%{$keyword}%")
-                ->orWhere('summary', 'like', "%{$keyword}%")
-                ->orWhere('search_keywords', 'like', "%{$keyword}%")
-                ->orWhere('sender_email', 'like', "%{$keyword}%");
+        // キーワードを空白で分割して複数キーワード検索をサポート
+        $keywords = preg_split('/\s+/', trim($keyword));
+        $keywords = array_filter($keywords, fn($k) => mb_strlen($k) >= 1);
+
+        if (empty($keywords)) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($keywords) {
+            foreach ($keywords as $k) {
+                $q->where(function ($subQ) use ($k) {
+                    $subQ->where('subject', 'like', "%{$k}%")
+                        ->orWhere('content', 'like', "%{$k}%")
+                        ->orWhere('summary', 'like', "%{$k}%")
+                        ->orWhere('search_keywords', 'like', "%{$k}%")
+                        ->orWhere('sender_email', 'like', "%{$k}%")
+                        ->orWhere('customer_id', 'like', "%{$k}%");
+                });
+            }
         });
     }
 

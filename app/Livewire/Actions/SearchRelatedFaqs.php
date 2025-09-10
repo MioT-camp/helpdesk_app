@@ -51,10 +51,12 @@ class SearchRelatedFaqs
         if (!empty($keywords)) {
             $query->where(function ($q) use ($keywords) {
                 foreach ($keywords as $keyword) {
-                    $q->orWhere('question', 'like', "%{$keyword}%")
-                        ->orWhere('answer', 'like', "%{$keyword}%")
-                        ->orWhere('search_keywords', 'like', "%{$keyword}%")
-                        ->orWhere('tags', 'like', "%{$keyword}%");
+                    $q->orWhere(function ($subQ) use ($keyword) {
+                        $subQ->where('question', 'like', "%{$keyword}%")
+                            ->orWhere('answer', 'like', "%{$keyword}%")
+                            ->orWhere('search_keywords', 'like', "%{$keyword}%")
+                            ->orWhere('tags', 'like', "%{$keyword}%");
+                    });
                 }
             });
         } else {

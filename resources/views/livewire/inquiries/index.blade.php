@@ -99,7 +99,9 @@ $resetFilters = function () {
                 <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     キーワード検索
                 </label>
-                <input type="text" id="search" wire:model.live.debounce.300ms="search" placeholder="件名や内容を検索..."
+                <input type="text" id="search" wire:model.live.debounce.300ms="search"
+                    placeholder="件名、内容、顧客IDで検索..."
+                    x-on:paste="$nextTick(() => $wire.set('search', $event.target.value))"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
             </div>
 
@@ -252,6 +254,9 @@ $resetFilters = function () {
 
                         <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
                             <span>送信者: {{ $inquiry->sender_email }}</span>
+                            @if ($inquiry->customer_id)
+                                <span>顧客ID: {{ $inquiry->customer_id }}</span>
+                            @endif
                             @if ($inquiry->assignedUser)
                                 <span>担当者: {{ $inquiry->assignedUser->name }}</span>
                             @endif
