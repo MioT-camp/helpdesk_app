@@ -69,6 +69,7 @@ $resetFilters = function () {
                     キーワード検索
                 </label>
                 <input type="text" id="search" wire:model.live.debounce.300ms="search" placeholder="質問や回答を検索..."
+                    x-on:paste="$nextTick(() => $wire.set('search', $event.target.value))"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
             </div>
 
