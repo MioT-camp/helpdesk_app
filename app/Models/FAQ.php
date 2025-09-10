@@ -176,7 +176,8 @@ class FAQ extends Model
      */
     public function scopeSearch($query, string $keyword)
     {
-        // キーワードを空白で分割して複数キーワード検索をサポート
+        // 全角スペースを半角スペースに変換してから分割
+        $keyword = str_replace('　', ' ', $keyword);
         $keywords = preg_split('/\s+/', trim($keyword));
         $keywords = array_filter($keywords, fn($k) => mb_strlen($k) >= 1);
 

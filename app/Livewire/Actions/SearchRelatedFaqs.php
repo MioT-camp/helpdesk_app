@@ -81,7 +81,9 @@ class SearchRelatedFaqs
     private function buildSearchText(string $subject, ?string $summary, string $content): string
     {
         $texts = array_filter([$subject, $summary, $content]);
-        return implode(' ', $texts);
+        $text = implode(' ', $texts);
+        // 全角スペースを半角スペースに正規化
+        return str_replace('　', ' ', $text);
     }
 
     /**
