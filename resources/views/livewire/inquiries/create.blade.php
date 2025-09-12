@@ -63,6 +63,18 @@ rules([
 $save = function () {
     $this->validate();
 
+    // 紐付けられたFAQの回答を取得
+    $faqAnswers = [];
+    if (!empty($this->linked_faq_ids)) {
+        $faqs = FAQ::whereIn('faq_id', $this->linked_faq_ids)->get();
+        foreach ($faqs as $faq) {
+            $faqAnswers[] = "【FAQ #{$faq->faq_id}】\n{$faq->question}\n\n{$faq->answer}";
+        }
+    }
+
+    // FAQの回答を結合して回答内容として設定
+    $response = !empty($faqAnswers) ? implode("\n\n" . str_repeat('=', 50) . "\n\n", $faqAnswers) : null;
+
     $inquiry = Inquiry::create([
         'status' => Inquiry::STATUS_PENDING,
         'received_at' => $this->received_at ? \Carbon\Carbon::parse($this->received_at) : now(),
@@ -74,6 +86,7 @@ $save = function () {
         'subject' => $this->subject,
         'summary' => $this->summary ?: null,
         'content' => $this->content,
+        'response' => $response,
         'priority' => $this->priority,
         'assigned_user_id' => $this->assigned_user_id ?: null,
         'created_user_id' => auth()->id(),
