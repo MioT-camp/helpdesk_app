@@ -115,8 +115,8 @@ $resetFilters = function () {
                     <option value="">すべてのステータス</option>
                     <option value="pending">未対応</option>
                     <option value="in_progress">対応中</option>
-                    <option value="completed">完了</option>
-                    <option value="closed">クローズ</option>
+                    <option value="completed">回答作成済</option>
+                    <option value="closed">メール送信済</option>
                 </select>
             </div>
 
@@ -197,15 +197,15 @@ $resetFilters = function () {
 
                                 @case('completed')
                                     <span
-                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                        完了
+                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                        回答作成済
                                     </span>
                                 @break
 
                                 @case('closed')
                                     <span
-                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                        クローズ
+                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        メール送信済
                                     </span>
                                 @break
                             @endswitch
@@ -264,6 +264,11 @@ $resetFilters = function () {
                             @if ($inquiry->response_deadline)
                                 <span class="{{ $inquiry->response_deadline->isPast() ? 'text-red-500' : '' }}">
                                     期限: {{ $inquiry->response_deadline->format('Y/m/d H:i') }}
+                                </span>
+                            @endif
+                            @if ($inquiry->status === 'closed' && $inquiry->email_sent_at)
+                                <span class="text-green-600 dark:text-green-400">
+                                    メール送信: {{ $inquiry->email_sent_at->format('Y/m/d H:i') }}
                                 </span>
                             @endif
                         </div>

@@ -20,6 +20,7 @@ state([
     'priority' => Inquiry::PRIORITY_NORMAL,
     'assigned_user_id' => '',
     'response_deadline' => '',
+    'received_at' => '',
     'linked_faq_ids' => [],
     'expanded_faq_id' => null,
 ]);
@@ -56,6 +57,7 @@ rules([
     'priority' => ['required', 'integer', Rule::in([1, 2, 3, 4])],
     'assigned_user_id' => 'nullable|exists:users,id',
     'response_deadline' => 'nullable|date|after:now',
+    'received_at' => 'required|date|before_or_equal:now',
 ]);
 
 $save = function () {
@@ -63,7 +65,7 @@ $save = function () {
 
     $inquiry = Inquiry::create([
         'status' => Inquiry::STATUS_PENDING,
-        'received_at' => now(),
+        'received_at' => $this->received_at ? \Carbon\Carbon::parse($this->received_at) : now(),
         'sender_email' => $this->sender_email,
         'customer_id' => $this->customer_id ?: null,
         'prefecture' => $this->prefecture ?: null,
@@ -265,6 +267,21 @@ $unlinkFaq = function ($faqId) {
                         @enderror
                     </div>
 
+                    <!-- 受信日時 -->
+                    <div>
+                        <label for="received_at"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            受信日時 <span class="text-red-500">*</span>
+                        </label>
+                        <input type="datetime-local" id="received_at" wire:model="received_at"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            required>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせメールの受信日時を入力してください。</p>
+                        @error('received_at')
+                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <!-- 回答期限 -->
                     <div>
                         <label for="response_deadline"
@@ -293,7 +310,8 @@ $unlinkFaq = function ($faqId) {
                         <label for="subject" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             件名 <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" id="subject" wire:model.live="subject" placeholder="問い合わせの件名を入力してください"
+                        <input type="text" id="subject" wire:model.live="subject"
+                            placeholder="問い合わせの件名を入力してください"
                             x-on:paste="$nextTick(() => $wire.set('subject', $event.target.value))"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                             required>
