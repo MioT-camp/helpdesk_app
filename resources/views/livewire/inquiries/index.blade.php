@@ -2,7 +2,7 @@
 
 use App\Models\Inquiry;
 use App\Models\Category;
-use function Livewire\Volt\{state, computed};
+use function Livewire\Volt\{state, computed, mount};
 
 state([
     'search' => '',
@@ -11,7 +11,22 @@ state([
     'priority' => '',
     'assigned_user_id' => '',
     'sort' => 'latest',
+    'unclosed_only' => false,
 ]);
+
+// ページ読み込み時にURLパラメータからフィルタ値を復元
+mount(function () {
+    // 直接フィルタ値を設定
+    if (request()->has('filter_status')) {
+        $this->status = request()->get('filter_status');
+    }
+    if (request()->has('filter_priority')) {
+        $this->priority = request()->get('filter_priority');
+    }
+    if (request()->has('filter_unclosed')) {
+        $this->unclosed_only = true;
+    }
+});
 
 $categories = computed(fn() => Category::active()->get());
 
@@ -26,6 +41,9 @@ $inquiries = computed(function () {
     // ステータスフィルター
     if ($this->status) {
         $query->where('status', $this->status);
+    } elseif ($this->unclosed_only) {
+        // 未対応フィルター（クローズ以外）- ステータスフィルタが指定されていない場合のみ適用
+        $query->whereNotIn('status', ['closed']);
     }
 
     // カテゴリフィルター
@@ -67,6 +85,14 @@ $resetFilters = function () {
     $this->priority = '';
     $this->assigned_user_id = '';
     $this->sort = 'latest';
+    $this->unclosed_only = false;
+};
+
+// ステータスフィルタが変更された時にunclosed_onlyをリセット
+$onStatusChange = function () {
+    if ($this->status) {
+        $this->unclosed_only = false;
+    }
 };
 
 ?>
@@ -89,6 +115,76 @@ $resetFilters = function () {
                 </a>
             </div>
         </div>
+
+        <!-- フィルタ状態表示 -->
+        @if ($this->unclosed_only || $this->status || $this->priority || $this->category_id || $this->search)
+            <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        <span class="text-sm font-medium text-blue-900 dark:text-blue-100">フィルタ適用中:</span>
+                        <div class="ml-2 flex flex-wrap gap-2">
+                            @if ($this->unclosed_only)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                    未対応のみ
+                                </span>
+                            @endif
+                            @if ($this->status)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                    ステータス:
+                                    {{ match ($this->status) {
+                                        'pending' => '未対応',
+                                        'in_progress' => '対応中',
+                                        'completed' => '回答作成済',
+                                        'closed' => 'メール送信済',
+                                        default => $this->status,
+                                    } }}
+                                </span>
+                            @endif
+                            @if ($this->priority)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                    優先度:
+                                    {{ match ($this->priority) {
+                                        '1' => '低',
+                                        '2' => '中',
+                                        '3' => '高',
+                                        '4' => '緊急',
+                                        default => $this->priority,
+                                    } }}
+                                </span>
+                            @endif
+                            @if ($this->category_id)
+                                @php $category = $this->categories->firstWhere('id', $this->category_id) @endphp
+                                @if ($category)
+                                    <span
+                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                        style="background-color: {{ $category->color ?? '#6B7280' }}20; color: {{ $category->color ?? '#6B7280' }}">
+                                        カテゴリ: {{ $category->name }}
+                                    </span>
+                                @endif
+                            @endif
+                            @if ($this->search)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                    検索: "{{ $this->search }}"
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                    <button wire:click="resetFilters"
+                        class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+                        フィルタをクリア
+                    </button>
+                </div>
+            </div>
+        @endif
     </div>
 
     <!-- 検索・フィルター -->
@@ -110,7 +206,7 @@ $resetFilters = function () {
                 <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     ステータス
                 </label>
-                <select id="status" wire:model.live="status"
+                <select id="status" wire:model.live="status" wire:change="onStatusChange"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
                     <option value="">すべてのステータス</option>
                     <option value="pending">未対応</option>
@@ -277,7 +373,8 @@ $resetFilters = function () {
             </div>
             @empty
                 <div class="text-center py-12">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>

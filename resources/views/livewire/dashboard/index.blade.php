@@ -6,14 +6,27 @@ use App\Models\Category;
 use function Livewire\Volt\{computed, state, mount};
 
 $stats = computed(function () {
+    $now = now();
+    $startOfMonth = $now->copy()->startOfMonth();
+    $endOfMonth = $now->copy()->endOfMonth();
+
     return [
-        'total_faqs' => FAQ::count(),
-        'active_faqs' => FAQ::where('is_active', true)->count(),
-        'total_inquiries' => Inquiry::count(),
-        'pending_inquiries' => Inquiry::where('status', 'pending')->count(),
-        'in_progress_inquiries' => Inquiry::where('status', 'in_progress')->count(),
+        // 今月の問い合わせ総数（クローズ数）
+        'monthly_closed_inquiries' => Inquiry::where('status', 'closed')
+            ->whereBetween('received_at', [$startOfMonth, $endOfMonth])
+            ->count(),
+        // 未対応（クローズ以外）
+        'unclosed_inquiries' => Inquiry::whereNotIn('status', ['closed'])->count(),
+        // 回答作成済（completed）
         'completed_inquiries' => Inquiry::where('status', 'completed')->count(),
-        'categories' => Category::count(),
+        // 今月の問い合わせ総数（全ステータス）
+        'monthly_total_inquiries' => Inquiry::whereBetween('received_at', [$startOfMonth, $endOfMonth])->count(),
+        // 新しい問い合わせ（今日受信）
+        'new_inquiries_today' => Inquiry::whereDate('received_at', $now->toDateString())->count(),
+        // 緊急問い合わせ（優先度4）
+        'urgent_inquiries' => Inquiry::where('priority', 4)
+            ->whereNotIn('status', ['closed'])
+            ->count(),
     ];
 });
 
@@ -62,48 +75,28 @@ $loadHotFaqs = function () {
     </div>
 
     <!-- 統計カード -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- FAQ統計 -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div class="flex items-center">
-                <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900">
-                    <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                </div>
-                <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">FAQ総数</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->stats['total_faqs']) }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">公開中:
-                        {{ number_format($this->stats['active_faqs']) }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 問い合わせ統計 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <!-- 今月の問い合わせ総数（クローズ数） -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div class="flex items-center">
                 <div class="p-3 rounded-full bg-green-100 dark:bg-green-900">
                     <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">問い合わせ総数</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">今月のクローズ数</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->stats['total_inquiries']) }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">完了:
-                        {{ number_format($this->stats['completed_inquiries']) }}</p>
+                        {{ number_format($this->stats['monthly_closed_inquiries']) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">今月総数:
+                        {{ number_format($this->stats['monthly_total_inquiries']) }}</p>
                 </div>
             </div>
         </div>
 
-        <!-- 未対応問い合わせ -->
+        <!-- 未対応問い合わせ（クローズ以外） -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div class="flex items-center">
                 <div class="p-3 rounded-full bg-red-100 dark:bg-red-900">
@@ -116,29 +109,136 @@ $loadHotFaqs = function () {
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">未対応</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->stats['pending_inquiries']) }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">対応中:
-                        {{ number_format($this->stats['in_progress_inquiries']) }}</p>
+                        {{ number_format($this->stats['unclosed_inquiries']) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">回答作成済:
+                        {{ number_format($this->stats['completed_inquiries']) }}</p>
                 </div>
             </div>
         </div>
 
-        <!-- カテゴリ数 -->
+        <!-- 今月の問い合わせ総数 -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div class="flex items-center">
-                <div class="p-3 rounded-full bg-purple-100 dark:bg-purple-900">
-                    <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor"
+                <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900">
+                    <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">カテゴリ数</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">今月の問い合わせ総数</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->stats['categories']) }}</p>
+                        {{ number_format($this->stats['monthly_total_inquiries']) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ now()->format('Y年n月') }}</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- クイックアクション -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">クイックアクション</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- 新しい問い合わせを登録 -->
+            <a href="{{ route('inquiries.create') }}"
+                class="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors group">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-blue-900 dark:text-blue-100">新しい問い合わせ</p>
+                    <p class="text-xs text-blue-600 dark:text-blue-300">問い合わせ登録</p>
+                </div>
+                <div class="ml-auto">
+                    <svg class="w-4 h-4 text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-300"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+
+            <!-- 緊急対応が必要 -->
+            <a href="{{ route('inquiries.index', ['filter_priority' => '4']) }}"
+                class="flex items-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-red-900 dark:text-red-100">緊急対応</p>
+                    <p class="text-xs text-red-600 dark:text-red-300">
+                        {{ number_format($this->stats['urgent_inquiries']) }}件</p>
+                </div>
+                <div class="ml-auto">
+                    <svg class="w-4 h-4 text-red-400 group-hover:text-red-600 dark:group-hover:text-red-300"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+
+            <!-- 未対応一覧 -->
+            <a href="{{ route('inquiries.index', ['filter_unclosed' => '1']) }}"
+                class="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors group">
+                <div class="flex-shrink-0">
+                    <div
+                        class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-yellow-900 dark:text-yellow-100">未対応一覧</p>
+                    <p class="text-xs text-yellow-600 dark:text-yellow-300">
+                        {{ number_format($this->stats['unclosed_inquiries']) }}件</p>
+                </div>
+                <div class="ml-auto">
+                    <svg class="w-4 h-4 text-yellow-400 group-hover:text-yellow-600 dark:group-hover:text-yellow-300"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+
+            <!-- FAQ追加 -->
+            <a href="{{ route('faqs.create') }}"
+                class="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors group">
+                <div class="flex-shrink-0">
+                    <div
+                        class="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-green-900 dark:text-green-100">FAQ追加</p>
+                    <p class="text-xs text-green-600 dark:text-green-300">新しいFAQ</p>
+                </div>
+                <div class="ml-auto">
+                    <svg class="w-4 h-4 text-green-400 group-hover:text-green-600 dark:group-hover:text-green-300"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
         </div>
     </div>
 
@@ -200,7 +300,8 @@ $loadHotFaqs = function () {
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div class="flex items-center justify-between">
                         <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

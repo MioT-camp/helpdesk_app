@@ -13,6 +13,14 @@ state([
 
 $categories = computed(fn() => Category::active()->get());
 
+$faqStats = computed(function () {
+    return [
+        'total_faqs' => FAQ::count(),
+        'active_faqs' => FAQ::where('is_active', true)->count(),
+        'inactive_faqs' => FAQ::where('is_active', false)->count(),
+    ];
+});
+
 $faqs = computed(function () {
     $query = FAQ::with(['category', 'user', 'updatedBy'])->active();
 
@@ -58,6 +66,60 @@ $resetFilters = function () {
     <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-900 dark:text-white">FAQ管理</h1>
         <p class="mt-2 text-gray-600 dark:text-gray-400">よくある質問の管理と検索</p>
+    </div>
+
+    <!-- FAQ統計 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900">
+                    <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">FAQ総数</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ number_format($this->faqStats['total_faqs']) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100 dark:bg-green-900">
+                    <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">公開中</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ number_format($this->faqStats['active_faqs']) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-gray-100 dark:bg-gray-900">
+                    <svg class="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">非公開</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ number_format($this->faqStats['inactive_faqs']) }}</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 検索・フィルター -->
@@ -213,7 +275,8 @@ $resetFilters = function () {
             </div>
         @empty
             <div class="text-center py-12">
-                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
