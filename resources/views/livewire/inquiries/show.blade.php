@@ -6,7 +6,7 @@ use App\Models\FAQ;
 use App\Livewire\Actions\SearchRelatedFaqs;
 use function Livewire\Volt\{state, mount, computed, rules};
 
-state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'response_linked_faq_ids' => [], 'response_expanded_faq_id' => null]);
+state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'response_expanded_faq_id' => null]);
 
 rules([
     'response' => 'required|string',
@@ -143,34 +143,6 @@ $saveResponse = function () {
 
     $this->inquiry->update($updateData);
 
-    // 回答時に選択されたFAQを紐付け
-    if (!empty($this->response_linked_faq_ids)) {
-        $pivotData = [];
-        foreach ($this->response_linked_faq_ids as $faqId) {
-            $pivotData[$faqId] = [
-                'relevance' => 5, // 回答時の紐付けは高い関連度
-                'linked_by' => auth()->id(),
-                'created_at' => now(),
-            ];
-        }
-
-        // 既存の紐付けと重複しないように、存在しないもののみ追加
-        $existingFaqIds = $this->inquiry->faqs()->pluck('faqs.faq_id')->toArray();
-        $newFaqIds = array_diff($this->response_linked_faq_ids, $existingFaqIds);
-
-        if (!empty($newFaqIds)) {
-            $newPivotData = [];
-            foreach ($newFaqIds as $faqId) {
-                $newPivotData[$faqId] = $pivotData[$faqId];
-            }
-            $this->inquiry->faqs()->attach($newPivotData);
-        }
-
-        // linked_faq_idsも更新
-        $allLinkedFaqIds = array_unique(array_merge($this->inquiry->linked_faq_ids ?? [], $this->response_linked_faq_ids));
-        $this->inquiry->update(['linked_faq_ids' => $allLinkedFaqIds]);
-    }
-
     session()->flash('message', '回答を保存しました。');
 };
 
@@ -229,15 +201,21 @@ $toggleResponseFaqExpansion = function ($faqId) {
     }
 };
 
-$linkResponseFaq = function ($faqId) {
-    if (!in_array($faqId, $this->response_linked_faq_ids)) {
-        $this->response_linked_faq_ids[] = $faqId;
+$insertFaqToResponse = function ($faqId) {
+    $faq = FAQ::find($faqId);
+    if (!$faq) {
+        return;
     }
-};
 
-$unlinkResponseFaq = function ($faqId) {
-    $this->response_linked_faq_ids = array_filter($this->response_linked_faq_ids, fn($id) => $id != $faqId);
-    $this->response_linked_faq_ids = array_values($this->response_linked_faq_ids);
+    $faqAnswer = $faq->answer;
+    $faqReference = "\n\n※参考FAQ #{$faq->faq_id}: {$faq->question}\n{$faqAnswer}";
+
+    // 現在の回答に追加
+    if (trim($this->response)) {
+        $this->response .= $faqReference;
+    } else {
+        $this->response = trim($faqReference);
+    }
 };
 
 ?>
@@ -624,7 +602,7 @@ $unlinkResponseFaq = function ($faqId) {
                     @if ($this->responseRelatedFaqs->isNotEmpty())
                         <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                             <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                                関連FAQ（回答内容に基づく）
+                                参考FAQ（回答テンプレート）
                             </h4>
                             <div class="space-y-3">
                                 @foreach ($this->responseRelatedFaqs as $faq)
@@ -649,27 +627,15 @@ $unlinkResponseFaq = function ($faqId) {
                                             </div>
 
                                             <div class="flex items-center gap-2 ml-3">
-                                                @if (in_array($faq->faq_id, $response_linked_faq_ids))
-                                                    <button wire:click="unlinkResponseFaq({{ $faq->faq_id }})"
-                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
-                                                        <svg class="w-3 h-3 mr-1" fill="none"
-                                                            stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                                        </svg>
-                                                        紐付け済み
-                                                    </button>
-                                                @else
-                                                    <button wire:click="linkResponseFaq({{ $faq->faq_id }})"
-                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
-                                                        <svg class="w-3 h-3 mr-1" fill="none"
-                                                            stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                                        </svg>
-                                                        紐付け
-                                                    </button>
-                                                @endif
+                                                <button wire:click="insertFaqToResponse({{ $faq->faq_id }})"
+                                                    class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
+                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                                            stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                    </svg>
+                                                    回答に挿入
+                                                </button>
                                             </div>
                                         </div>
 
@@ -687,33 +653,6 @@ $unlinkResponseFaq = function ($faqId) {
                         </div>
                     @endif
 
-                    <!-- 紐付け済みFAQ（回答用） -->
-                    @if (count($response_linked_faq_ids) > 0)
-                        <div
-                            class="border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900 rounded-lg p-4">
-                            <h4 class="text-sm font-medium text-green-800 dark:text-green-200 mb-3">回答時に紐付けるFAQ</h4>
-                            <div class="space-y-2">
-                                @foreach ($response_linked_faq_ids as $faqId)
-                                    @php $faq = FAQ::with(['category'])->find($faqId) @endphp
-                                    @if ($faq)
-                                        <div
-                                            class="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-md">
-                                            <span
-                                                class="text-sm text-gray-900 dark:text-white truncate">{{ $faq->question }}</span>
-                                            <button wire:click="unlinkResponseFaq({{ $faqId }})"
-                                                class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                    viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    @endif
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
 
                     <!-- ステータス -->
                     <div>
