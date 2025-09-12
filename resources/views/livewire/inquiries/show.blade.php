@@ -23,7 +23,7 @@ rules([
     'edit_user_attribute' => 'nullable|string|max:50',
     'edit_category_id' => 'nullable|exists:categories,id',
     'edit_received_at' => 'required|date|before_or_equal:now',
-    'edit_response_deadline' => 'nullable|date|after:now',
+    'edit_response_deadline' => 'nullable|date',
 ]);
 
 mount(function ($inquiry_id) {
@@ -232,7 +232,7 @@ $saveInquiryEdit = function () {
         'edit_user_attribute' => 'nullable|string|max:50',
         'edit_category_id' => 'nullable|exists:categories,id',
         'edit_received_at' => 'required|date|before_or_equal:now',
-        'edit_response_deadline' => 'nullable|date|after:now',
+        'edit_response_deadline' => 'nullable|date',
     ]);
 
     $this->inquiry->update([

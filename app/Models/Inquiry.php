@@ -198,8 +198,19 @@ class Inquiry extends Model
      */
     public function scopeOverdue($query)
     {
-        return $query->where('response_deadline', '<', now())
-            ->whereNotIn('status', [self::STATUS_COMPLETED, self::STATUS_CLOSED, self::STATUS_NO_RESPONSE]);
+        return $query->where(function ($q) {
+            $q->where(function ($subQ) {
+                // クローズ（メール送信済）以外の場合：回答期限が現時点で過ぎている
+                $subQ->where('response_deadline', '<', now())
+                    ->whereNotIn('status', [self::STATUS_CLOSED, self::STATUS_NO_RESPONSE]);
+            })->orWhere(function ($subQ) {
+                // クローズ（メール送信済）の場合：回答期限よりメール送信日時が遅い
+                $subQ->where('status', self::STATUS_CLOSED)
+                    ->whereNotNull('response_deadline')
+                    ->whereNotNull('email_sent_at')
+                    ->whereColumn('email_sent_at', '>', 'response_deadline');
+            });
+        });
     }
 
     /**
@@ -291,9 +302,18 @@ class Inquiry extends Model
      */
     public function getIsOverdueAttribute(): bool
     {
-        return $this->response_deadline &&
-            $this->response_deadline->isPast() &&
-            !in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CLOSED, self::STATUS_NO_RESPONSE]);
+        if (!$this->response_deadline) {
+            return false;
+        }
+
+        if ($this->status === self::STATUS_CLOSED && $this->email_sent_at) {
+            // クローズ（メール送信済）の場合：回答期限よりメール送信日時が遅い
+            return $this->email_sent_at->gt($this->response_deadline);
+        } else {
+            // クローズ（メール送信済）以外の場合：回答期限が現時点で過ぎている
+            return $this->response_deadline->isPast() &&
+                !in_array($this->status, [self::STATUS_CLOSED, self::STATUS_NO_RESPONSE]);
+        }
     }
 
     /**
