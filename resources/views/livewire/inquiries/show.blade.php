@@ -105,8 +105,19 @@ $toggleFaqExpansion = function ($faqId) {
 $linkFaq = function ($faqId) {
     $linkedFaqIds = $this->inquiry->linked_faq_ids ?? [];
     if (!in_array($faqId, $linkedFaqIds)) {
+        // JSONカラムを更新
         $linkedFaqIds[] = $faqId;
         $this->inquiry->update(['linked_faq_ids' => $linkedFaqIds]);
+
+        // inquiry_faqテーブルにも挿入（重複チェック付き）
+        $existingRecord = \DB::table('inquiry_faq')->where('inquiry_id', $this->inquiry->inquiry_id)->where('faq_id', $faqId)->exists();
+        if (!$existingRecord) {
+            $this->inquiry->faqs()->attach($faqId, [
+                'relevance' => 3, // 手動紐付けは中程度の関連度
+                'linked_by' => auth()->id(),
+                'created_at' => now(),
+            ]);
+        }
     }
 };
 
@@ -114,6 +125,9 @@ $unlinkFaq = function ($faqId) {
     $linkedFaqIds = $this->inquiry->linked_faq_ids ?? [];
     $linkedFaqIds = array_filter($linkedFaqIds, fn($id) => $id != $faqId);
     $this->inquiry->update(['linked_faq_ids' => array_values($linkedFaqIds)]);
+
+    // inquiry_faqテーブルからも削除
+    $this->inquiry->faqs()->detach($faqId);
 };
 
 $saveResponse = function () {

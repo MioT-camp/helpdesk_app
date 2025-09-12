@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\DB;
 
 /**
  * FAQモデル
@@ -260,7 +261,9 @@ class FAQ extends Model
      */
     public function getLinkedInquiriesCountAttribute(): int
     {
-        return $this->inquiries()->count();
+        return DB::table('inquiry_faq')
+            ->where('faq_id', $this->faq_id)
+            ->count();
     }
 
     /**
@@ -268,8 +271,9 @@ class FAQ extends Model
      */
     public function getRecentLinkedInquiriesCountAttribute(): int
     {
-        return $this->inquiries()
-            ->wherePivot('created_at', '>=', now()->subMonth())
+        return DB::table('inquiry_faq')
+            ->where('faq_id', $this->faq_id)
+            ->where('created_at', '>=', now()->subMonth())
             ->count();
     }
 }
