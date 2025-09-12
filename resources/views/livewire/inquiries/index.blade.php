@@ -37,11 +37,7 @@ $categories = computed(fn() => Category::active()->get());
 
 $users = computed(fn() => User::where('is_active', true)->orderBy('name')->get());
 
-$overdueCount = computed(
-    fn() => Inquiry::where('response_deadline', '<', now())
-        ->whereNotIn('status', ['closed', 'no_response'])
-        ->count(),
-);
+$overdueCount = computed(fn() => Inquiry::overdue()->count());
 
 $inquiries = computed(function () {
     $query = Inquiry::with(['category', 'assignedUser', 'createdUser']);
@@ -54,7 +50,7 @@ $inquiries = computed(function () {
     // ステータスフィルター
     if ($this->overdue_only) {
         // 期限切れフィルター - 最優先
-        $query->where('response_deadline', '<', now())->whereNotIn('status', ['closed', 'no_response']);
+        $query->overdue();
     } elseif ($this->status) {
         $query->where('status', $this->status);
     } elseif ($this->unclosed_only) {
@@ -105,46 +101,51 @@ $inquiries = computed(function () {
     }
 
     // ソート
-    switch ($this->sort) {
-        case 'priority':
-            $query->orderBy('priority', 'desc')->orderBy('received_at', 'desc');
-            break;
-        case 'priority_asc':
-            $query->orderBy('priority', 'asc')->orderBy('received_at', 'desc');
-            break;
-        case 'deadline':
-            $query->orderByRaw('response_deadline IS NULL, response_deadline ASC');
-            break;
-        case 'deadline_desc':
-            $query->orderByRaw('response_deadline IS NULL DESC, response_deadline DESC');
-            break;
-        case 'status':
-            $query
-                ->orderByRaw(
-                    "CASE 
-                WHEN status = 'pending' THEN 1 
-                WHEN status = 'in_progress' THEN 2 
-                WHEN status = 'completed' THEN 3 
-                WHEN status = 'closed' THEN 4 
-                WHEN status = 'no_response' THEN 5 
-                ELSE 6 
-            END",
-                )
-                ->orderBy('received_at', 'desc');
-            break;
-        case 'assigned_user':
-            $query->orderByRaw('assigned_user_id IS NULL, assigned_user_id ASC')->orderBy('received_at', 'desc');
-            break;
-        case 'category':
-            $query->orderByRaw('category_id IS NULL, category_id ASC')->orderBy('received_at', 'desc');
-            break;
-        case 'oldest':
-            $query->orderBy('received_at', 'asc');
-            break;
-        case 'latest':
-        default:
-            $query->orderBy('received_at', 'desc');
-            break;
+    if ($this->overdue_only) {
+        // 期限切れボタンでの表示：回答メール送信を行っていないものが上に来る、その中で期限が古い順
+        $query->orderByRaw('CASE WHEN status = "closed" THEN 1 ELSE 0 END, response_deadline IS NULL, response_deadline ASC');
+    } else {
+        switch ($this->sort) {
+            case 'priority':
+                $query->orderBy('priority', 'desc')->orderBy('received_at', 'desc');
+                break;
+            case 'priority_asc':
+                $query->orderBy('priority', 'asc')->orderBy('received_at', 'desc');
+                break;
+            case 'deadline':
+                $query->orderByRaw('response_deadline IS NULL, response_deadline ASC');
+                break;
+            case 'deadline_desc':
+                $query->orderByRaw('response_deadline IS NULL DESC, response_deadline DESC');
+                break;
+            case 'status':
+                $query
+                    ->orderByRaw(
+                        "CASE 
+                    WHEN status = 'pending' THEN 1 
+                    WHEN status = 'in_progress' THEN 2 
+                    WHEN status = 'completed' THEN 3 
+                    WHEN status = 'closed' THEN 4 
+                    WHEN status = 'no_response' THEN 5 
+                    ELSE 6 
+                END",
+                    )
+                    ->orderBy('received_at', 'desc');
+                break;
+            case 'assigned_user':
+                $query->orderByRaw('assigned_user_id IS NULL, assigned_user_id ASC')->orderBy('received_at', 'desc');
+                break;
+            case 'category':
+                $query->orderByRaw('category_id IS NULL, category_id ASC')->orderBy('received_at', 'desc');
+                break;
+            case 'oldest':
+                $query->orderBy('received_at', 'asc');
+                break;
+            case 'latest':
+            default:
+                $query->orderBy('received_at', 'desc');
+                break;
+        }
     }
 
     return $query->paginate(15);
@@ -240,7 +241,7 @@ $onOverdueChange = function () {
                             @if ($this->overdue_only)
                                 <span
                                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                                    期限切れのみ
+                                    期限切れのみ（メール送信済含む）
                                 </span>
                             @endif
                             @if ($this->status)
@@ -564,7 +565,19 @@ $onOverdueChange = function () {
                             @endif
                             <span>受信: {{ $inquiry->received_at->format('Y/m/d H:i') }}</span>
                             @if ($inquiry->response_deadline)
-                                <span class="{{ $inquiry->response_deadline->isPast() ? 'text-red-500' : '' }}">
+                                @php
+                                    $isOverdue = false;
+                                    if ($inquiry->status === 'closed' && $inquiry->email_sent_at) {
+                                        // クローズ（メール送信済）の場合：回答期限よりメール送信日時が遅い
+                                        $isOverdue = $inquiry->email_sent_at->gt($inquiry->response_deadline);
+                                    } else {
+                                        // クローズ（メール送信済）以外の場合：回答期限が現時点で過ぎている
+                                        $isOverdue =
+                                            $inquiry->response_deadline->isPast() &&
+                                            !in_array($inquiry->status, ['closed', 'no_response']);
+                                    }
+                                @endphp
+                                <span class="{{ $isOverdue ? 'text-red-500 font-semibold' : '' }}">
                                     期限: {{ $inquiry->response_deadline->format('Y/m/d H:i') }}
                                 </span>
                             @endif
