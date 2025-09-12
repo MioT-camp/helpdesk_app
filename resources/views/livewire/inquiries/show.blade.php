@@ -373,12 +373,66 @@ $insertFaqToResponse = function ($faqId) {
                             @else
                                 <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $inquiry->subject }}
                                 </h1>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせ ID:
-                                    #{{ $inquiry->inquiry_id }}</p>
+                                <div class="mt-1 flex items-center gap-2">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">問い合わせ ID:
+                                        #{{ $inquiry->inquiry_id }}</p>
+                                    <button x-data="{ copied: false }"
+                                        @click="
+                                            navigator.clipboard.writeText('{{ $inquiry->inquiry_id }}').then(() => {
+                                                copied = true;
+                                                setTimeout(() => copied = false, 2000);
+                                            })
+                                        "
+                                        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                        title="IDをコピー">
+                                        <svg x-show="!copied" class="w-4 h-4" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z">
+                                            </path>
+                                        </svg>
+                                        <svg x-show="copied" x-cloak class="w-4 h-4 text-green-500" fill="none"
+                                            stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    </button>
+                                </div>
                             @endif
                         </div>
                         <div class="flex items-center gap-2 ml-4">
                             @if (!$editing_mode)
+                                <!-- 戻るボタン -->
+                                <a href="{{ route('inquiries.index') }}"
+                                    class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                                    wire:navigate title="問い合わせ管理に戻る">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                                    </svg>
+                                    戻る
+                                </a>
+
+                                <!-- コピーボタン -->
+                                <button x-data="{ copied: false }"
+                                    @click="
+                                        navigator.clipboard.writeText('{{ request()->url() }}').then(() => {
+                                            copied = true;
+                                            setTimeout(() => copied = false, 2000);
+                                        })
+                                    "
+                                    class="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                                    title="問い合わせURLをコピー">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1">
+                                        </path>
+                                    </svg>
+                                    <span x-show="!copied">URL</span>
+                                    <span x-show="copied" x-cloak
+                                        class="text-green-600 dark:text-green-400">コピー完了!</span>
+                                </button>
+
                                 <button wire:click="startEditing"
                                     class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-md text-sm font-medium transition-colors">
                                     <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor"
