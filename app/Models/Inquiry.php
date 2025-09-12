@@ -59,6 +59,7 @@ class Inquiry extends Model
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CLOSED = 'closed';
+    public const STATUS_NO_RESPONSE = 'no_response';
 
     /**
      * 優先度定数
@@ -198,7 +199,7 @@ class Inquiry extends Model
     public function scopeOverdue($query)
     {
         return $query->where('response_deadline', '<', now())
-            ->whereNotIn('status', [self::STATUS_COMPLETED, self::STATUS_CLOSED]);
+            ->whereNotIn('status', [self::STATUS_COMPLETED, self::STATUS_CLOSED, self::STATUS_NO_RESPONSE]);
     }
 
     /**
@@ -247,7 +248,10 @@ class Inquiry extends Model
                         ->orWhere('summary', 'like', "%{$k}%")
                         ->orWhere('search_keywords', 'like', "%{$k}%")
                         ->orWhere('sender_email', 'like', "%{$k}%")
-                        ->orWhere('customer_id', 'like', "%{$k}%");
+                        ->orWhere('customer_id', 'like', "%{$k}%")
+                        ->orWhereHas('assignedUser', function ($userQuery) use ($k) {
+                            $userQuery->where('name', 'like', "%{$k}%");
+                        });
                 });
             }
         });
@@ -263,6 +267,7 @@ class Inquiry extends Model
             self::STATUS_IN_PROGRESS => '対応中',
             self::STATUS_COMPLETED => '完了',
             self::STATUS_CLOSED => 'クローズ',
+            self::STATUS_NO_RESPONSE => '回答不要',
             default => '不明',
         };
     }
@@ -288,7 +293,7 @@ class Inquiry extends Model
     {
         return $this->response_deadline &&
             $this->response_deadline->isPast() &&
-            !in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CLOSED]);
+            !in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CLOSED, self::STATUS_NO_RESPONSE]);
     }
 
     /**

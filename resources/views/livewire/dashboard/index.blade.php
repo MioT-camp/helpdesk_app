@@ -27,6 +27,10 @@ $stats = computed(function () {
         'urgent_inquiries' => Inquiry::where('priority', 4)
             ->whereNotIn('status', ['closed'])
             ->count(),
+        // 期限切れ問い合わせ（回答期限が過ぎていて、クローズされていない）
+        'overdue_inquiries' => Inquiry::where('response_deadline', '<', $now)
+            ->whereNotIn('status', ['closed'])
+            ->count(),
     ];
 });
 
@@ -112,6 +116,8 @@ $loadHotFaqs = function () {
                         {{ number_format($this->stats['unclosed_inquiries']) }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">回答作成済:
                         {{ number_format($this->stats['completed_inquiries']) }}</p>
+                    <p class="text-xs text-red-600 dark:text-red-400 font-medium">期限切れ:
+                        {{ number_format($this->stats['overdue_inquiries']) }}</p>
                 </div>
             </div>
         </div>

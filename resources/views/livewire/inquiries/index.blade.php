@@ -2,6 +2,7 @@
 
 use App\Models\Inquiry;
 use App\Models\Category;
+use App\Models\User;
 use function Livewire\Volt\{state, computed, mount};
 
 state([
@@ -12,6 +13,10 @@ state([
     'assigned_user_id' => '',
     'sort' => 'latest',
     'unclosed_only' => false,
+    'overdue_only' => false,
+    'date_from' => '',
+    'date_to' => '',
+    'date_period' => '', // 'this_month', 'last_month', 'this_year', 'custom'
 ]);
 
 // ページ読み込み時にURLパラメータからフィルタ値を復元
@@ -30,8 +35,16 @@ mount(function () {
 
 $categories = computed(fn() => Category::active()->get());
 
+$users = computed(fn() => User::where('is_active', true)->orderBy('name')->get());
+
+$overdueCount = computed(
+    fn() => Inquiry::where('response_deadline', '<', now())
+        ->whereNotIn('status', ['closed', 'no_response'])
+        ->count(),
+);
+
 $inquiries = computed(function () {
-    $query = Inquiry::with(['category', 'assignedUser', 'createdUser'])->orderBy('received_at', 'desc');
+    $query = Inquiry::with(['category', 'assignedUser', 'createdUser']);
 
     // 検索条件
     if ($this->search) {
@@ -39,11 +52,14 @@ $inquiries = computed(function () {
     }
 
     // ステータスフィルター
-    if ($this->status) {
+    if ($this->overdue_only) {
+        // 期限切れフィルター - 最優先
+        $query->where('response_deadline', '<', now())->whereNotIn('status', ['closed', 'no_response']);
+    } elseif ($this->status) {
         $query->where('status', $this->status);
     } elseif ($this->unclosed_only) {
         // 未対応フィルター（クローズ以外）- ステータスフィルタが指定されていない場合のみ適用
-        $query->whereNotIn('status', ['closed']);
+        $query->whereNotIn('status', ['closed', 'no_response']);
     }
 
     // カテゴリフィルター
@@ -58,7 +74,34 @@ $inquiries = computed(function () {
 
     // 担当者フィルター
     if ($this->assigned_user_id) {
-        $query->where('assigned_user_id', $this->assigned_user_id);
+        if ($this->assigned_user_id === 'unassigned') {
+            $query->whereNull('assigned_user_id');
+        } else {
+            $query->where('assigned_user_id', $this->assigned_user_id);
+        }
+    }
+
+    // 日付期間フィルター
+    if ($this->date_period) {
+        switch ($this->date_period) {
+            case 'this_month':
+                $query->whereBetween('received_at', [now()->startOfMonth(), now()->endOfMonth()]);
+                break;
+            case 'last_month':
+                $query->whereBetween('received_at', [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()]);
+                break;
+            case 'this_year':
+                $query->whereBetween('received_at', [now()->startOfYear(), now()->endOfYear()]);
+                break;
+            case 'custom':
+                if ($this->date_from) {
+                    $query->where('received_at', '>=', $this->date_from);
+                }
+                if ($this->date_to) {
+                    $query->where('received_at', '<=', $this->date_to . ' 23:59:59');
+                }
+                break;
+        }
     }
 
     // ソート
@@ -66,8 +109,37 @@ $inquiries = computed(function () {
         case 'priority':
             $query->orderBy('priority', 'desc')->orderBy('received_at', 'desc');
             break;
+        case 'priority_asc':
+            $query->orderBy('priority', 'asc')->orderBy('received_at', 'desc');
+            break;
         case 'deadline':
             $query->orderByRaw('response_deadline IS NULL, response_deadline ASC');
+            break;
+        case 'deadline_desc':
+            $query->orderByRaw('response_deadline IS NULL DESC, response_deadline DESC');
+            break;
+        case 'status':
+            $query
+                ->orderByRaw(
+                    "CASE 
+                WHEN status = 'pending' THEN 1 
+                WHEN status = 'in_progress' THEN 2 
+                WHEN status = 'completed' THEN 3 
+                WHEN status = 'closed' THEN 4 
+                WHEN status = 'no_response' THEN 5 
+                ELSE 6 
+            END",
+                )
+                ->orderBy('received_at', 'desc');
+            break;
+        case 'assigned_user':
+            $query->orderByRaw('assigned_user_id IS NULL, assigned_user_id ASC')->orderBy('received_at', 'desc');
+            break;
+        case 'category':
+            $query->orderByRaw('category_id IS NULL, category_id ASC')->orderBy('received_at', 'desc');
+            break;
+        case 'oldest':
+            $query->orderBy('received_at', 'asc');
             break;
         case 'latest':
         default:
@@ -86,11 +158,24 @@ $resetFilters = function () {
     $this->assigned_user_id = '';
     $this->sort = 'latest';
     $this->unclosed_only = false;
+    $this->overdue_only = false;
+    $this->date_from = '';
+    $this->date_to = '';
+    $this->date_period = '';
 };
 
-// ステータスフィルタが変更された時にunclosed_onlyをリセット
+// ステータスフィルタが変更された時にunclosed_onlyとoverdue_onlyをリセット
 $onStatusChange = function () {
     if ($this->status) {
+        $this->unclosed_only = false;
+        $this->overdue_only = false;
+    }
+};
+
+// 期限切れフィルタが変更された時に他のフィルタをリセット
+$onOverdueChange = function () {
+    if ($this->overdue_only) {
+        $this->status = '';
         $this->unclosed_only = false;
     }
 };
@@ -105,6 +190,16 @@ $onStatusChange = function () {
                 <p class="mt-2 text-gray-600 dark:text-gray-400">顧客からの問い合わせの管理と対応</p>
             </div>
             <div class="flex gap-2">
+                @if ($this->overdueCount > 0)
+                    <button wire:click="$set('overdue_only', true)" wire:change="onOverdueChange"
+                        class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 {{ $this->overdue_only ? 'ring-2 ring-red-300' : '' }}">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        期限切れ ({{ $this->overdueCount }})
+                    </button>
+                @endif
                 <a href="{{ route('inquiries.create') }}"
                     class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -117,7 +212,15 @@ $onStatusChange = function () {
         </div>
 
         <!-- フィルタ状態表示 -->
-        @if ($this->unclosed_only || $this->status || $this->priority || $this->category_id || $this->search)
+        @if (
+            $this->unclosed_only ||
+                $this->overdue_only ||
+                $this->status ||
+                $this->priority ||
+                $this->category_id ||
+                $this->assigned_user_id ||
+                $this->date_period ||
+                $this->search)
             <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
@@ -134,6 +237,12 @@ $onStatusChange = function () {
                                     未対応のみ
                                 </span>
                             @endif
+                            @if ($this->overdue_only)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                    期限切れのみ
+                                </span>
+                            @endif
                             @if ($this->status)
                                 <span
                                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
@@ -143,6 +252,7 @@ $onStatusChange = function () {
                                         'in_progress' => '対応中',
                                         'completed' => '回答作成済',
                                         'closed' => 'メール送信済',
+                                        'no_response' => '回答不要',
                                         default => $this->status,
                                     } }}
                                 </span>
@@ -170,6 +280,30 @@ $onStatusChange = function () {
                                     </span>
                                 @endif
                             @endif
+                            @if ($this->assigned_user_id)
+                                @php $assignedUser = $this->users->firstWhere('id', $this->assigned_user_id) @endphp
+                                @if ($assignedUser)
+                                    <span
+                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                        担当者: {{ $assignedUser->name }}
+                                    </span>
+                                @endif
+                            @endif
+                            @if ($this->date_period)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                    期間:
+                                    {{ match ($this->date_period) {
+                                        'this_month' => '今月',
+                                        'last_month' => '先月',
+                                        'this_year' => '今年',
+                                        'custom' => ($this->date_from ? $this->date_from : '開始日未設定') .
+                                            ' ～ ' .
+                                            ($this->date_to ? $this->date_to : '終了日未設定'),
+                                        default => $this->date_period,
+                                    } }}
+                                </span>
+                            @endif
                             @if ($this->search)
                                 <span
                                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
@@ -189,14 +323,14 @@ $onStatusChange = function () {
 
     <!-- 検索・フィルター -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
             <!-- 検索 -->
             <div>
                 <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     キーワード検索
                 </label>
                 <input type="text" id="search" wire:model.live.debounce.300ms="search"
-                    placeholder="件名、内容、顧客IDで検索..."
+                    placeholder="件名、内容、顧客ID、担当者名で検索..."
                     x-on:paste="$nextTick(() => $wire.set('search', $event.target.value))"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
             </div>
@@ -213,6 +347,7 @@ $onStatusChange = function () {
                     <option value="in_progress">対応中</option>
                     <option value="completed">回答作成済</option>
                     <option value="closed">メール送信済</option>
+                    <option value="no_response">回答不要</option>
                 </select>
             </div>
 
@@ -245,6 +380,21 @@ $onStatusChange = function () {
                 </select>
             </div>
 
+            <!-- 担当者フィルター -->
+            <div>
+                <label for="assigned_user" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    担当者
+                </label>
+                <select id="assigned_user" wire:model.live="assigned_user_id"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="">すべての担当者</option>
+                    <option value="unassigned">未割り当て</option>
+                    @foreach ($this->users as $user)
+                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
             <!-- ソート -->
             <div>
                 <label for="sort" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -252,12 +402,61 @@ $onStatusChange = function () {
                 </label>
                 <select id="sort" wire:model.live="sort"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                    <option value="latest">受信日時順</option>
-                    <option value="priority">優先度順</option>
-                    <option value="deadline">期限順</option>
+                    <optgroup label="受信日時">
+                        <option value="latest">受信日時順（新しい順）</option>
+                        <option value="oldest">受信日時順（古い順）</option>
+                    </optgroup>
+                    <optgroup label="優先度">
+                        <option value="priority">優先度順（高い順）</option>
+                        <option value="priority_asc">優先度順（低い順）</option>
+                    </optgroup>
+                    <optgroup label="期限">
+                        <option value="deadline">期限順（近い順）</option>
+                        <option value="deadline_desc">期限順（遠い順）</option>
+                    </optgroup>
+                    <optgroup label="その他">
+                        <option value="status">ステータス順</option>
+                        <option value="assigned_user">担当者順</option>
+                        <option value="category">カテゴリ順</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <!-- 日付期間フィルター -->
+            <div>
+                <label for="date_period" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    受信期間
+                </label>
+                <select id="date_period" wire:model.live="date_period"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="">すべての期間</option>
+                    <option value="this_month">今月</option>
+                    <option value="last_month">先月</option>
+                    <option value="this_year">今年</option>
+                    <option value="custom">カスタム期間</option>
                 </select>
             </div>
         </div>
+
+        <!-- カスタム期間フィルター -->
+        @if ($this->date_period === 'custom')
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div>
+                    <label for="date_from" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        開始日
+                    </label>
+                    <input type="date" id="date_from" wire:model.live="date_from"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label for="date_to" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        終了日
+                    </label>
+                    <input type="date" id="date_to" wire:model.live="date_to"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                </div>
+            </div>
+        @endif
 
         <div class="flex justify-between items-center">
             <button wire:click="resetFilters"
@@ -302,6 +501,13 @@ $onStatusChange = function () {
                                     <span
                                         class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                         メール送信済
+                                    </span>
+                                @break
+
+                                @case('no_response')
+                                    <span
+                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                                        回答不要
                                     </span>
                                 @break
                             @endswitch

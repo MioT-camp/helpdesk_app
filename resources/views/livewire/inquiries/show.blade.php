@@ -6,11 +6,11 @@ use App\Models\FAQ;
 use App\Livewire\Actions\SearchRelatedFaqs;
 use function Livewire\Volt\{state, mount, computed, rules};
 
-state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'email_sent_at' => '', 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'edit_received_at' => '', 'response_expanded_faq_id' => null, 'response_editing_mode' => false]);
+state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'email_sent_at' => '', 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'edit_received_at' => '', 'edit_response_deadline' => '', 'response_expanded_faq_id' => null, 'response_editing_mode' => false]);
 
 rules([
     'response' => 'required|string',
-    'status' => 'required|in:pending,in_progress,completed,closed',
+    'status' => 'required|in:pending,in_progress,completed,closed,no_response',
     'assigned_user_id' => 'nullable|exists:users,id',
     'priority' => 'required|integer|between:1,4',
     'email_sent_at' => 'nullable|date',
@@ -23,6 +23,7 @@ rules([
     'edit_user_attribute' => 'nullable|string|max:50',
     'edit_category_id' => 'nullable|exists:categories,id',
     'edit_received_at' => 'required|date|before_or_equal:now',
+    'edit_response_deadline' => 'nullable|date|after:now',
 ]);
 
 mount(function ($inquiry_id) {
@@ -46,6 +47,7 @@ mount(function ($inquiry_id) {
     $this->edit_user_attribute = $this->inquiry->user_attribute ?? '';
     $this->edit_category_id = $this->inquiry->category_id;
     $this->edit_received_at = $this->inquiry->received_at ? $this->inquiry->received_at->format('Y-m-d\TH:i') : '';
+    $this->edit_response_deadline = $this->inquiry->response_deadline ? $this->inquiry->response_deadline->format('Y-m-d\TH:i') : '';
 });
 
 $users = computed(fn() => User::where('is_active', true)->get());
@@ -126,7 +128,7 @@ $unlinkFaq = function ($faqId) {
 $saveResponse = function () {
     $this->validate([
         'response' => 'required|string|max:10000',
-        'status' => 'required|in:pending,in_progress,completed,closed',
+        'status' => 'required|in:pending,in_progress,completed,closed,no_response',
         'assigned_user_id' => 'nullable|exists:users,id',
         'priority' => 'required|integer|min:1|max:4',
         'email_sent_at' => 'nullable|date',
@@ -180,6 +182,7 @@ $startEditing = function () {
     $this->edit_user_attribute = $this->inquiry->user_attribute ?? '';
     $this->edit_category_id = $this->inquiry->category_id;
     $this->edit_received_at = $this->inquiry->received_at ? $this->inquiry->received_at->format('Y-m-d\TH:i') : '';
+    $this->edit_response_deadline = $this->inquiry->response_deadline ? $this->inquiry->response_deadline->format('Y-m-d\TH:i') : '';
 };
 
 // 回答編集の制御
@@ -229,6 +232,7 @@ $saveInquiryEdit = function () {
         'edit_user_attribute' => 'nullable|string|max:50',
         'edit_category_id' => 'nullable|exists:categories,id',
         'edit_received_at' => 'required|date|before_or_equal:now',
+        'edit_response_deadline' => 'nullable|date|after:now',
     ]);
 
     $this->inquiry->update([
@@ -241,6 +245,7 @@ $saveInquiryEdit = function () {
         'user_attribute' => $this->edit_user_attribute ?: null,
         'category_id' => $this->edit_category_id ?: null,
         'received_at' => $this->edit_received_at ? \Carbon\Carbon::parse($this->edit_received_at) : null,
+        'response_deadline' => $this->edit_response_deadline ? \Carbon\Carbon::parse($this->edit_response_deadline) : null,
     ]);
 
     $this->editing_mode = false;
@@ -351,6 +356,22 @@ $insertFaqToResponse = function ($faqId) {
                                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせメールの受信日時を入力してください。
                                         </p>
                                         @error('edit_received_at')
+                                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
+                                    <!-- 回答期限 -->
+                                    <div>
+                                        <label for="edit_response_deadline"
+                                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            回答期限
+                                        </label>
+                                        <input type="datetime-local" id="edit_response_deadline"
+                                            wire:model="edit_response_deadline"
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">回答期限を設定します（任意）。
+                                        </p>
+                                        @error('edit_response_deadline')
                                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                                         @enderror
                                     </div>
@@ -538,6 +559,13 @@ $insertFaqToResponse = function ($faqId) {
                                     <span
                                         class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                         メール送信済
+                                    </span>
+                                @break
+
+                                @case('no_response')
+                                    <span
+                                        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                                        回答不要
                                     </span>
                                 @break
                             @endswitch
@@ -851,6 +879,7 @@ $insertFaqToResponse = function ($faqId) {
                             <option value="in_progress">対応中</option>
                             <option value="completed">回答作成済</option>
                             <option value="closed">クローズ（メール送信済）</option>
+                            <option value="no_response">回答不要</option>
                         </select>
                         @error('status')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
