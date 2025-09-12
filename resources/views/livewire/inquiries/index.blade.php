@@ -13,6 +13,7 @@ state([
     'assigned_user_id' => '',
     'sort' => 'latest',
     'unclosed_only' => false,
+    'overdue_only' => false,
     'date_from' => '',
     'date_to' => '',
     'date_period' => '', // 'this_month', 'last_month', 'this_year', 'custom'
@@ -36,6 +37,12 @@ $categories = computed(fn() => Category::active()->get());
 
 $users = computed(fn() => User::where('is_active', true)->orderBy('name')->get());
 
+$overdueCount = computed(
+    fn() => Inquiry::where('response_deadline', '<', now())
+        ->whereNotIn('status', ['closed'])
+        ->count(),
+);
+
 $inquiries = computed(function () {
     $query = Inquiry::with(['category', 'assignedUser', 'createdUser']);
 
@@ -45,7 +52,10 @@ $inquiries = computed(function () {
     }
 
     // ステータスフィルター
-    if ($this->status) {
+    if ($this->overdue_only) {
+        // 期限切れフィルター - 最優先
+        $query->where('response_deadline', '<', now())->whereNotIn('status', ['closed']);
+    } elseif ($this->status) {
         $query->where('status', $this->status);
     } elseif ($this->unclosed_only) {
         // 未対応フィルター（クローズ以外）- ステータスフィルタが指定されていない場合のみ適用
@@ -147,14 +157,24 @@ $resetFilters = function () {
     $this->assigned_user_id = '';
     $this->sort = 'latest';
     $this->unclosed_only = false;
+    $this->overdue_only = false;
     $this->date_from = '';
     $this->date_to = '';
     $this->date_period = '';
 };
 
-// ステータスフィルタが変更された時にunclosed_onlyをリセット
+// ステータスフィルタが変更された時にunclosed_onlyとoverdue_onlyをリセット
 $onStatusChange = function () {
     if ($this->status) {
+        $this->unclosed_only = false;
+        $this->overdue_only = false;
+    }
+};
+
+// 期限切れフィルタが変更された時に他のフィルタをリセット
+$onOverdueChange = function () {
+    if ($this->overdue_only) {
+        $this->status = '';
         $this->unclosed_only = false;
     }
 };
@@ -169,6 +189,16 @@ $onStatusChange = function () {
                 <p class="mt-2 text-gray-600 dark:text-gray-400">顧客からの問い合わせの管理と対応</p>
             </div>
             <div class="flex gap-2">
+                @if ($this->overdueCount > 0)
+                    <button wire:click="$set('overdue_only', true)" wire:change="onOverdueChange"
+                        class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 {{ $this->overdue_only ? 'ring-2 ring-red-300' : '' }}">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        期限切れ ({{ $this->overdueCount }})
+                    </button>
+                @endif
                 <a href="{{ route('inquiries.create') }}"
                     class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,6 +213,7 @@ $onStatusChange = function () {
         <!-- フィルタ状態表示 -->
         @if (
             $this->unclosed_only ||
+                $this->overdue_only ||
                 $this->status ||
                 $this->priority ||
                 $this->category_id ||
@@ -203,6 +234,12 @@ $onStatusChange = function () {
                                 <span
                                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                     未対応のみ
+                                </span>
+                            @endif
+                            @if ($this->overdue_only)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                    期限切れのみ
                                 </span>
                             @endif
                             @if ($this->status)
