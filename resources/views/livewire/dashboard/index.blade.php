@@ -169,11 +169,11 @@ $loadHotFaqs = function () {
                                 @break
 
                                 @case('completed')
-                                    <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                                    <div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
                                 @break
 
                                 @case('closed')
-                                    <div class="w-2 h-2 bg-gray-500 rounded-full mt-2"></div>
+                                    <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
                                 @break
                             @endswitch
                         </div>

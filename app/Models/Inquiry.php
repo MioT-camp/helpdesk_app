@@ -90,6 +90,7 @@ class Inquiry extends Model
         'response_deadline',
         'first_response_at',
         'completed_at',
+        'email_sent_at',
         'search_keywords',
         'attachments',
     ];
@@ -102,6 +103,7 @@ class Inquiry extends Model
         'response_deadline' => 'datetime',
         'first_response_at' => 'datetime',
         'completed_at' => 'datetime',
+        'email_sent_at' => 'datetime',
         'linked_faq_ids' => 'array',
         'attachments' => 'array',
         'priority' => 'integer',

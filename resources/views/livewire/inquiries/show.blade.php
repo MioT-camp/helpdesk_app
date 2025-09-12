@@ -6,13 +6,14 @@ use App\Models\FAQ;
 use App\Livewire\Actions\SearchRelatedFaqs;
 use function Livewire\Volt\{state, mount, computed, rules};
 
-state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'response_expanded_faq_id' => null]);
+state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'email_sent_at' => '', 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'edit_received_at' => '', 'response_expanded_faq_id' => null]);
 
 rules([
     'response' => 'required|string',
     'status' => 'required|in:pending,in_progress,completed,closed',
     'assigned_user_id' => 'nullable|exists:users,id',
     'priority' => 'required|integer|between:1,4',
+    'email_sent_at' => 'nullable|date',
     'edit_subject' => 'required|string|max:500',
     'edit_summary' => 'nullable|string',
     'edit_content' => 'required|string',
@@ -21,6 +22,7 @@ rules([
     'edit_prefecture' => 'nullable|string|max:20',
     'edit_user_attribute' => 'nullable|string|max:50',
     'edit_category_id' => 'nullable|exists:categories,id',
+    'edit_received_at' => 'required|date|before_or_equal:now',
 ]);
 
 mount(function ($inquiry_id) {
@@ -32,6 +34,7 @@ mount(function ($inquiry_id) {
     $this->status = $this->inquiry->status;
     $this->assigned_user_id = $this->inquiry->assigned_user_id;
     $this->priority = $this->inquiry->priority;
+    $this->email_sent_at = $this->inquiry->email_sent_at ? $this->inquiry->email_sent_at->format('Y-m-d\TH:i') : '';
 
     // 編集用フィールドの初期化
     $this->edit_subject = $this->inquiry->subject;
@@ -42,6 +45,7 @@ mount(function ($inquiry_id) {
     $this->edit_prefecture = $this->inquiry->prefecture ?? '';
     $this->edit_user_attribute = $this->inquiry->user_attribute ?? '';
     $this->edit_category_id = $this->inquiry->category_id;
+    $this->edit_received_at = $this->inquiry->received_at ? $this->inquiry->received_at->format('Y-m-d\TH:i') : '';
 });
 
 $users = computed(fn() => User::where('is_active', true)->get());
@@ -122,6 +126,7 @@ $saveResponse = function () {
         'status' => 'required|in:pending,in_progress,completed,closed',
         'assigned_user_id' => 'nullable|exists:users,id',
         'priority' => 'required|integer|min:1|max:4',
+        'email_sent_at' => 'nullable|date',
     ]);
 
     $updateData = [
@@ -139,6 +144,16 @@ $saveResponse = function () {
     // 完了の場合
     if ($this->status === 'completed' && !$this->inquiry->completed_at) {
         $updateData['completed_at'] = now();
+    }
+
+    // クローズ（メール送信済）の場合
+    if ($this->status === 'closed') {
+        if ($this->email_sent_at) {
+            $updateData['email_sent_at'] = $this->email_sent_at;
+        } else {
+            // メール送信日時が未入力の場合は現在時刻を設定
+            $updateData['email_sent_at'] = now();
+        }
     }
 
     $this->inquiry->update($updateData);
@@ -161,6 +176,7 @@ $startEditing = function () {
     $this->edit_prefecture = $this->inquiry->prefecture ?? '';
     $this->edit_user_attribute = $this->inquiry->user_attribute ?? '';
     $this->edit_category_id = $this->inquiry->category_id;
+    $this->edit_received_at = $this->inquiry->received_at ? $this->inquiry->received_at->format('Y-m-d\TH:i') : '';
 };
 
 $cancelEditing = function () {
@@ -178,6 +194,7 @@ $saveInquiryEdit = function () {
         'edit_prefecture' => 'nullable|string|max:20',
         'edit_user_attribute' => 'nullable|string|max:50',
         'edit_category_id' => 'nullable|exists:categories,id',
+        'edit_received_at' => 'required|date|before_or_equal:now',
     ]);
 
     $this->inquiry->update([
@@ -189,6 +206,7 @@ $saveInquiryEdit = function () {
         'prefecture' => $this->edit_prefecture ?: null,
         'user_attribute' => $this->edit_user_attribute ?: null,
         'category_id' => $this->edit_category_id ?: null,
+        'received_at' => $this->edit_received_at ? \Carbon\Carbon::parse($this->edit_received_at) : null,
     ]);
 
     $this->editing_mode = false;
@@ -283,6 +301,22 @@ $insertFaqToResponse = function ($faqId) {
                                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                                             placeholder="メールアドレスを入力してください">
                                         @error('edit_sender_email')
+                                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
+                                    <!-- 受信日時 -->
+                                    <div>
+                                        <label for="edit_received_at"
+                                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            メールの受信日時 <span class="text-red-500">*</span>
+                                        </label>
+                                        <input type="datetime-local" id="edit_received_at" wire:model="edit_received_at"
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                                            required>
+                                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせメールの受信日時を入力してください。
+                                        </p>
+                                        @error('edit_received_at')
                                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                                         @enderror
                                     </div>
@@ -461,15 +495,15 @@ $insertFaqToResponse = function ($faqId) {
 
                                 @case('completed')
                                     <span
-                                        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                        完了
+                                        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                        回答作成済
                                     </span>
                                 @break
 
                                 @case('closed')
                                     <span
-                                        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                        クローズ
+                                        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        メール送信済
                                     </span>
                                 @break
                             @endswitch
@@ -575,18 +609,23 @@ $insertFaqToResponse = function ($faqId) {
                                 </dd>
                             </div>
                         @endif
-                        @if ($inquiry->first_response_at)
+                        <div>
+                            <dt class="font-medium text-gray-500 dark:text-gray-400">問合せ登録日時</dt>
+                            <dd class="mt-1 text-gray-900 dark:text-white">
+                                {{ $inquiry->created_at->format('Y年m月d日 H:i') }}</dd>
+                        </div>
+                        @if ($inquiry->response)
                             <div>
-                                <dt class="font-medium text-gray-500 dark:text-gray-400">初回回答日時</dt>
+                                <dt class="font-medium text-gray-500 dark:text-gray-400">回答登録日時</dt>
                                 <dd class="mt-1 text-gray-900 dark:text-white">
-                                    {{ $inquiry->first_response_at->format('Y年m月d日 H:i') }}</dd>
+                                    {{ $inquiry->updated_at->format('Y年m月d日 H:i') }}</dd>
                             </div>
                         @endif
-                        @if ($inquiry->completed_at)
+                        @if ($inquiry->email_sent_at)
                             <div>
-                                <dt class="font-medium text-gray-500 dark:text-gray-400">完了日時</dt>
+                                <dt class="font-medium text-gray-500 dark:text-gray-400">メール送信日時</dt>
                                 <dd class="mt-1 text-gray-900 dark:text-white">
-                                    {{ $inquiry->completed_at->format('Y年m月d日 H:i') }}</dd>
+                                    {{ $inquiry->email_sent_at->format('Y年m月d日 H:i') }}</dd>
                             </div>
                         @endif
                         @if ($inquiry->assigned_user_id)
@@ -718,18 +757,36 @@ $insertFaqToResponse = function ($faqId) {
                         <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             ステータス <span class="text-red-500">*</span>
                         </label>
-                        <select id="status" wire:model="status"
+                        <select id="status" wire:model.live="status"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                             required>
                             <option value="pending">未対応</option>
                             <option value="in_progress">対応中</option>
-                            <option value="completed">完了</option>
-                            <option value="closed">クローズ</option>
+                            <option value="completed">回答作成済</option>
+                            <option value="closed">クローズ（メール送信済）</option>
                         </select>
                         @error('status')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                         @enderror
                     </div>
+
+                    <!-- メール送信日時（クローズ時のみ表示） -->
+                    @if ($status === 'closed')
+                        <div>
+                            <label for="email_sent_at"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                メール送信日時
+                            </label>
+                            <input type="datetime-local" id="email_sent_at" wire:model="email_sent_at"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                メール送信日時を入力してください。未入力の場合は現在時刻が設定されます。
+                            </p>
+                            @error('email_sent_at')
+                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    @endif
 
                     <!-- 担当者 -->
                     <div>
