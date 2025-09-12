@@ -790,16 +790,29 @@ $insertFaqToResponse = function ($faqId) {
                                             </div>
 
                                             <div class="flex items-center gap-2 ml-3">
-                                                <button type="button"
-                                                    wire:click="insertFaqToResponse({{ $faq->faq_id }})"
-                                                    class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
-                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor"
-                                                        viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                                    </svg>
-                                                    回答に挿入
-                                                </button>
+                                                @if ($this->isResponseEditable || $response_editing_mode)
+                                                    <button type="button"
+                                                        wire:click="insertFaqToResponse({{ $faq->faq_id }})"
+                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
+                                                        <svg class="w-3 h-3 mr-1" fill="none"
+                                                            stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                        </svg>
+                                                        回答に挿入
+                                                    </button>
+                                                @else
+                                                    <button type="button" disabled
+                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 rounded cursor-not-allowed"
+                                                        title="編集モードでないため挿入できません">
+                                                        <svg class="w-3 h-3 mr-1" fill="none"
+                                                            stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                        </svg>
+                                                        回答に挿入
+                                                    </button>
+                                                @endif
                                             </div>
                                         </div>
 
