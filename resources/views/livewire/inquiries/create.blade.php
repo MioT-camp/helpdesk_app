@@ -5,6 +5,7 @@ use App\Models\Category;
 use App\Models\User;
 use App\Models\FAQ;
 use App\Livewire\Actions\SearchRelatedFaqs;
+use App\Services\BusinessDayCalculator;
 use Illuminate\Validation\Rule;
 use function Livewire\Volt\{state, computed, rules};
 
@@ -129,6 +130,16 @@ $linkFaq = function ($faqId) {
 
 $unlinkFaq = function ($faqId) {
     $this->linked_faq_ids = array_filter($this->linked_faq_ids, fn($id) => $id != $faqId);
+};
+
+// 受信日時が変更されたときに回答期限を自動設定
+$calculateDeadline = function () {
+    if ($this->received_at) {
+        $calculator = new BusinessDayCalculator();
+        $receivedAt = \Carbon\Carbon::parse($this->received_at);
+        $deadline = $calculator->calculateResponseDeadline($receivedAt);
+        $this->response_deadline = $deadline->format('Y-m-d\TH:i');
+    }
 };
 
 ?>
@@ -286,10 +297,17 @@ $unlinkFaq = function ($faqId) {
                             class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             受信日時 <span class="text-red-500">*</span>
                         </label>
-                        <input type="datetime-local" id="received_at" wire:model="received_at"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                            required>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">問い合わせメールの受信日時を入力してください。</p>
+                        <div class="flex gap-2">
+                            <input type="datetime-local" id="received_at" wire:model="received_at"
+                                class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                                required>
+                            <button type="button" wire:click="calculateDeadline"
+                                class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-800">
+                                期限設定
+                            </button>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            問い合わせメールの受信日時を入力し、「期限設定」ボタンで回答期限を自動設定できます。</p>
                         @error('received_at')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                         @enderror
@@ -303,7 +321,8 @@ $unlinkFaq = function ($faqId) {
                         </label>
                         <input type="datetime-local" id="response_deadline" wire:model="response_deadline"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">回答期限を設定します（任意）。</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">回答期限を設定します（任意）。受信日時を入力すると自動で設定されます。
+                        </p>
                         @error('response_deadline')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                         @enderror

@@ -39,7 +39,7 @@ $users = computed(fn() => User::where('is_active', true)->orderBy('name')->get()
 
 $overdueCount = computed(
     fn() => Inquiry::where('response_deadline', '<', now())
-        ->whereNotIn('status', ['closed'])
+        ->whereNotIn('status', ['closed', 'no_response'])
         ->count(),
 );
 
@@ -54,12 +54,12 @@ $inquiries = computed(function () {
     // ステータスフィルター
     if ($this->overdue_only) {
         // 期限切れフィルター - 最優先
-        $query->where('response_deadline', '<', now())->whereNotIn('status', ['closed']);
+        $query->where('response_deadline', '<', now())->whereNotIn('status', ['closed', 'no_response']);
     } elseif ($this->status) {
         $query->where('status', $this->status);
     } elseif ($this->unclosed_only) {
         // 未対応フィルター（クローズ以外）- ステータスフィルタが指定されていない場合のみ適用
-        $query->whereNotIn('status', ['closed']);
+        $query->whereNotIn('status', ['closed', 'no_response']);
     }
 
     // カテゴリフィルター
@@ -126,7 +126,8 @@ $inquiries = computed(function () {
                 WHEN status = 'in_progress' THEN 2 
                 WHEN status = 'completed' THEN 3 
                 WHEN status = 'closed' THEN 4 
-                ELSE 5 
+                WHEN status = 'no_response' THEN 5 
+                ELSE 6 
             END",
                 )
                 ->orderBy('received_at', 'desc');
@@ -251,6 +252,7 @@ $onOverdueChange = function () {
                                         'in_progress' => '対応中',
                                         'completed' => '回答作成済',
                                         'closed' => 'メール送信済',
+                                        'no_response' => '回答不要',
                                         default => $this->status,
                                     } }}
                                 </span>
@@ -345,6 +347,7 @@ $onOverdueChange = function () {
                     <option value="in_progress">対応中</option>
                     <option value="completed">回答作成済</option>
                     <option value="closed">メール送信済</option>
+                    <option value="no_response">回答不要</option>
                 </select>
             </div>
 
@@ -498,6 +501,13 @@ $onOverdueChange = function () {
                                     <span
                                         class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                         メール送信済
+                                    </span>
+                                @break
+
+                                @case('no_response')
+                                    <span
+                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                                        回答不要
                                     </span>
                                 @break
                             @endswitch
