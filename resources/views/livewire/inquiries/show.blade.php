@@ -750,9 +750,17 @@ $insertFaqToResponse = function ($faqId) {
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                                 required></textarea>
                         @else
-                            <div
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white whitespace-pre-wrap min-h-[150px]">
-                                {{ $response ?: '回答が未入力です。' }}
+                            <div class="relative">
+                                <div
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white whitespace-pre-wrap min-h-[150px]">
+                                    {{ $response ?: '回答が未入力です。' }}
+                                </div>
+                                @if ($response)
+                                    <div class="absolute top-2 right-2 z-10">
+                                        <x-copy-button :text="$response" label="回答をコピー" variant="primary"
+                                            size="xs" title="回答内容をクリップボードにコピー" class="shadow-md" />
+                                    </div>
+                                @endif
                             </div>
                         @endif
                         @error('response')

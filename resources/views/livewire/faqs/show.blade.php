@@ -176,7 +176,11 @@ mount(function ($faq_id) {
 
             <!-- 回答 -->
             <div class="mb-8">
-                <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">回答</h2>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400">回答</h2>
+                    <x-copy-button :text="$faq->answer" label="回答をコピー" variant="primary" size="xs"
+                        title="FAQ回答をクリップボードにコピー" />
+                </div>
                 <div class="prose dark:prose-invert max-w-none">
                     {!! nl2br(e($faq->answer)) !!}
                 </div>
