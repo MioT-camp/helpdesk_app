@@ -6,7 +6,7 @@ use App\Models\FAQ;
 use App\Livewire\Actions\SearchRelatedFaqs;
 use function Livewire\Volt\{state, mount, computed, rules};
 
-state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'email_sent_at' => '', 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'edit_received_at' => '', 'response_expanded_faq_id' => null]);
+state(['inquiry', 'response' => '', 'status' => '', 'assigned_user_id' => '', 'priority' => 2, 'email_sent_at' => '', 'expanded_faq_id' => null, 'editing_mode' => false, 'edit_subject' => '', 'edit_summary' => '', 'edit_content' => '', 'edit_sender_email' => '', 'edit_customer_id' => '', 'edit_prefecture' => '', 'edit_user_attribute' => '', 'edit_category_id' => '', 'edit_received_at' => '', 'response_expanded_faq_id' => null, 'response_editing_mode' => false]);
 
 rules([
     'response' => 'required|string',
@@ -50,6 +50,9 @@ mount(function ($inquiry_id) {
 
 $users = computed(fn() => User::where('is_active', true)->get());
 $categories = computed(fn() => \App\Models\Category::active()->orderBy('name')->get());
+
+// 回答内容の編集可能かどうかを判定
+$isResponseEditable = computed(fn() => !in_array($this->inquiry->status, ['completed', 'closed']));
 
 // 都道府県リスト
 $prefectures = computed(fn() => ['北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県', '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県', '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県', '鳥取県', '島根県', '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県']);
@@ -179,8 +182,39 @@ $startEditing = function () {
     $this->edit_received_at = $this->inquiry->received_at ? $this->inquiry->received_at->format('Y-m-d\TH:i') : '';
 };
 
+// 回答編集の制御
+$startResponseEditing = function () {
+    // ステータスが「回答作成済」または「クローズ」の場合は警告を表示
+    if (!$this->isResponseEditable) {
+        // JavaScriptのconfirmを使用
+        $this->js(
+            "
+            if (confirm('この問い合わせは「" .
+                ($this->inquiry->status === 'completed' ? '回答作成済' : 'クローズ') .
+                "」ステータスです。回答を編集しますか？')) {
+                \$wire.confirmResponseEdit();
+            }
+        ",
+        );
+        return;
+    }
+
+    // 編集可能な場合は直接編集モードに移行
+    $this->response_editing_mode = true;
+};
+
+// 確認後に回答編集モードを開始
+$confirmResponseEdit = function () {
+    $this->response_editing_mode = true;
+};
+
 $cancelEditing = function () {
     $this->editing_mode = false;
+    $this->resetValidation();
+};
+
+$cancelResponseEditing = function () {
+    $this->response_editing_mode = false;
     $this->resetValidation();
 };
 
@@ -677,7 +711,32 @@ $insertFaqToResponse = function ($faqId) {
             <!-- 回答登録 -->
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">回答登録</h2>
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">回答登録</h2>
+                        @if (!$this->isResponseEditable && !$response_editing_mode)
+                            <button wire:click="startResponseEditing"
+                                class="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                                <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                    </path>
+                                </svg>
+                                回答を編集
+                            </button>
+                        @elseif ($response_editing_mode)
+                            <button wire:click="cancelResponseEditing"
+                                class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                                <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12">
+                                    </path>
+                                </svg>
+                                キャンセル
+                            </button>
+                        @endif
+                    </div>
                 </div>
 
                 <form wire:submit="saveResponse" class="px-6 py-6 space-y-4">
@@ -686,9 +745,16 @@ $insertFaqToResponse = function ($faqId) {
                         <label for="response" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             回答内容 <span class="text-red-500">*</span>
                         </label>
-                        <textarea id="response" wire:model.live="response" rows="6" placeholder="回答内容を入力してください"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                            required></textarea>
+                        @if ($this->isResponseEditable || $response_editing_mode)
+                            <textarea id="response" wire:model.live="response" rows="6" placeholder="回答内容を入力してください"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                                required></textarea>
+                        @else
+                            <div
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white whitespace-pre-wrap min-h-[150px]">
+                                {{ $response ?: '回答が未入力です。' }}
+                            </div>
+                        @endif
                         @error('response')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                         @enderror
@@ -724,16 +790,29 @@ $insertFaqToResponse = function ($faqId) {
                                             </div>
 
                                             <div class="flex items-center gap-2 ml-3">
-                                                <button type="button"
-                                                    wire:click="insertFaqToResponse({{ $faq->faq_id }})"
-                                                    class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
-                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor"
-                                                        viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                                    </svg>
-                                                    回答に挿入
-                                                </button>
+                                                @if ($this->isResponseEditable || $response_editing_mode)
+                                                    <button type="button"
+                                                        wire:click="insertFaqToResponse({{ $faq->faq_id }})"
+                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
+                                                        <svg class="w-3 h-3 mr-1" fill="none"
+                                                            stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                        </svg>
+                                                        回答に挿入
+                                                    </button>
+                                                @else
+                                                    <button type="button" disabled
+                                                        class="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 rounded cursor-not-allowed"
+                                                        title="編集モードでないため挿入できません">
+                                                        <svg class="w-3 h-3 mr-1" fill="none"
+                                                            stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                        </svg>
+                                                        回答に挿入
+                                                    </button>
+                                                @endif
                                             </div>
                                         </div>
 
@@ -1007,6 +1086,91 @@ $insertFaqToResponse = function ($faqId) {
                         </div>
                     </div>
                 @endif
+            </div>
+        </div>
+    </div>
+
+    <!-- 編集確認ダイアログ -->
+    <div x-data="{
+        show: false,
+        message: '',
+        status: '',
+        type: 'inquiry',
+        init() {
+            console.log('Dialog initialized');
+        }
+    }"
+        x-on:confirm-edit.window="
+        show = true;
+        message = $event.detail.message;
+        status = $event.detail.status;
+        type = 'inquiry';
+    "
+        x-on:show-response-edit-dialog.window="
+        console.log('show-response-edit-dialog event received');
+        show = true;
+        message = 'この問い合わせは「{{ $inquiry->status === 'completed' ? '回答作成済' : 'クローズ' }}」ステータスです。回答を編集しますか？';
+        status = '{{ $inquiry->status }}';
+        type = 'response';
+    "
+        x-show="show" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true"
+        style="display: none;">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div x-show="show" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div x-show="show" x-transition:enter="ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div
+                            class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900 sm:mx-0 sm:h-10 sm:w-10">
+                            <svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
+                                編集の確認
+                            </h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500 dark:text-gray-400" x-text="message"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button"
+                        @click="
+                            show = false;
+                            if (type === 'response') {
+                                $wire.confirmResponseEdit();
+                            } else {
+                                $wire.confirmEdit();
+                            }
+                        "
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
+                        編集を続行
+                    </button>
+                    <button type="button" @click="show = false"
+                        class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        キャンセル
+                    </button>
+                </div>
             </div>
         </div>
     </div>
