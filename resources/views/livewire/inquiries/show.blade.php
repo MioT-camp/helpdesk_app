@@ -612,7 +612,8 @@ $insertFaqToResponse = function ($faqId) {
                                     <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                         <div class="flex items-start justify-between">
                                             <div class="flex-1">
-                                                <button wire:click="toggleResponseFaqExpansion({{ $faq->faq_id }})"
+                                                <button type="button"
+                                                    wire:click="toggleResponseFaqExpansion({{ $faq->faq_id }})"
                                                     class="text-left w-full">
                                                     <h5
                                                         class="text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
@@ -630,7 +631,8 @@ $insertFaqToResponse = function ($faqId) {
                                             </div>
 
                                             <div class="flex items-center gap-2 ml-3">
-                                                <button wire:click="insertFaqToResponse({{ $faq->faq_id }})"
+                                                <button type="button"
+                                                    wire:click="insertFaqToResponse({{ $faq->faq_id }})"
                                                     class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
                                                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor"
                                                         viewBox="0 0 24 24">
