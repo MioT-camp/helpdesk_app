@@ -247,7 +247,10 @@ class Inquiry extends Model
                         ->orWhere('summary', 'like', "%{$k}%")
                         ->orWhere('search_keywords', 'like', "%{$k}%")
                         ->orWhere('sender_email', 'like', "%{$k}%")
-                        ->orWhere('customer_id', 'like', "%{$k}%");
+                        ->orWhere('customer_id', 'like', "%{$k}%")
+                        ->orWhereHas('assignedUser', function ($userQuery) use ($k) {
+                            $userQuery->where('name', 'like', "%{$k}%");
+                        });
                 });
             }
         });

@@ -31,7 +31,7 @@ mount(function () {
 $categories = computed(fn() => Category::active()->get());
 
 $inquiries = computed(function () {
-    $query = Inquiry::with(['category', 'assignedUser', 'createdUser'])->orderBy('received_at', 'desc');
+    $query = Inquiry::with(['category', 'assignedUser', 'createdUser']);
 
     // 検索条件
     if ($this->search) {
@@ -66,8 +66,36 @@ $inquiries = computed(function () {
         case 'priority':
             $query->orderBy('priority', 'desc')->orderBy('received_at', 'desc');
             break;
+        case 'priority_asc':
+            $query->orderBy('priority', 'asc')->orderBy('received_at', 'desc');
+            break;
         case 'deadline':
             $query->orderByRaw('response_deadline IS NULL, response_deadline ASC');
+            break;
+        case 'deadline_desc':
+            $query->orderByRaw('response_deadline IS NULL DESC, response_deadline DESC');
+            break;
+        case 'status':
+            $query
+                ->orderByRaw(
+                    "CASE 
+                WHEN status = 'pending' THEN 1 
+                WHEN status = 'in_progress' THEN 2 
+                WHEN status = 'completed' THEN 3 
+                WHEN status = 'closed' THEN 4 
+                ELSE 5 
+            END",
+                )
+                ->orderBy('received_at', 'desc');
+            break;
+        case 'assigned_user':
+            $query->orderByRaw('assigned_user_id IS NULL, assigned_user_id ASC')->orderBy('received_at', 'desc');
+            break;
+        case 'category':
+            $query->orderByRaw('category_id IS NULL, category_id ASC')->orderBy('received_at', 'desc');
+            break;
+        case 'oldest':
+            $query->orderBy('received_at', 'asc');
             break;
         case 'latest':
         default:
@@ -196,7 +224,7 @@ $onStatusChange = function () {
                     キーワード検索
                 </label>
                 <input type="text" id="search" wire:model.live.debounce.300ms="search"
-                    placeholder="件名、内容、顧客IDで検索..."
+                    placeholder="件名、内容、顧客ID、担当者名で検索..."
                     x-on:paste="$nextTick(() => $wire.set('search', $event.target.value))"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
             </div>
@@ -252,9 +280,23 @@ $onStatusChange = function () {
                 </label>
                 <select id="sort" wire:model.live="sort"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                    <option value="latest">受信日時順</option>
-                    <option value="priority">優先度順</option>
-                    <option value="deadline">期限順</option>
+                    <optgroup label="受信日時">
+                        <option value="latest">受信日時順（新しい順）</option>
+                        <option value="oldest">受信日時順（古い順）</option>
+                    </optgroup>
+                    <optgroup label="優先度">
+                        <option value="priority">優先度順（高い順）</option>
+                        <option value="priority_asc">優先度順（低い順）</option>
+                    </optgroup>
+                    <optgroup label="期限">
+                        <option value="deadline">期限順（近い順）</option>
+                        <option value="deadline_desc">期限順（遠い順）</option>
+                    </optgroup>
+                    <optgroup label="その他">
+                        <option value="status">ステータス順</option>
+                        <option value="assigned_user">担当者順</option>
+                        <option value="category">カテゴリ順</option>
+                    </optgroup>
                 </select>
             </div>
         </div>
