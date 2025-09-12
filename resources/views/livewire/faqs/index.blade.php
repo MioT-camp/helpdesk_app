@@ -14,7 +14,7 @@ state([
 $categories = computed(fn() => Category::active()->get());
 
 $faqs = computed(function () {
-    $query = FAQ::with(['category', 'user'])->active();
+    $query = FAQ::with(['category', 'user', 'updatedBy'])->active();
 
     // 検索条件
     if ($this->search) {
@@ -188,7 +188,15 @@ $resetFilters = function () {
                         <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
                             <span>作成者: {{ $faq->user->name }}</span>
                             <span class="mx-2">•</span>
-                            <span>{{ $faq->created_at->format('Y/m/d H:i') }}</span>
+                            <span>作成: {{ $faq->created_at->format('Y/m/d H:i') }}</span>
+                            @if ($faq->updated_at->ne($faq->created_at))
+                                <span class="mx-2">•</span>
+                                <span>更新: {{ $faq->updated_at->format('Y/m/d H:i') }}</span>
+                                @if ($faq->updatedBy)
+                                    <span class="mx-2">•</span>
+                                    <span>更新者: {{ $faq->updatedBy->name }}</span>
+                                @endif
+                            @endif
                         </div>
                     </div>
 

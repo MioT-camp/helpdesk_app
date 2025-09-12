@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * FAQモデル
@@ -50,6 +51,7 @@ class FAQ extends Model
         'question',
         'answer',
         'user_id',
+        'updated_by',
         'count',
         'is_active',
         'tags',
@@ -94,6 +96,14 @@ class FAQ extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * 最終更新者とのリレーション
+     */
+    public function updatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     /**
@@ -271,5 +281,19 @@ class FAQ extends Model
         return $this->inquiries()
             ->wherePivot('created_at', '>=', now()->subMonth())
             ->count();
+    }
+
+    /**
+     * モデルの更新時にupdated_byを自動設定
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::updating(function ($faq) {
+            if (Auth::check()) {
+                $faq->updated_by = Auth::id();
+            }
+        });
     }
 }
