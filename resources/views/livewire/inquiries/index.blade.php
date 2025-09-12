@@ -2,6 +2,7 @@
 
 use App\Models\Inquiry;
 use App\Models\Category;
+use App\Models\User;
 use function Livewire\Volt\{state, computed, mount};
 
 state([
@@ -12,6 +13,9 @@ state([
     'assigned_user_id' => '',
     'sort' => 'latest',
     'unclosed_only' => false,
+    'date_from' => '',
+    'date_to' => '',
+    'date_period' => '', // 'this_month', 'last_month', 'this_year', 'custom'
 ]);
 
 // ページ読み込み時にURLパラメータからフィルタ値を復元
@@ -29,6 +33,8 @@ mount(function () {
 });
 
 $categories = computed(fn() => Category::active()->get());
+
+$users = computed(fn() => User::where('is_active', true)->orderBy('name')->get());
 
 $inquiries = computed(function () {
     $query = Inquiry::with(['category', 'assignedUser', 'createdUser']);
@@ -58,7 +64,34 @@ $inquiries = computed(function () {
 
     // 担当者フィルター
     if ($this->assigned_user_id) {
-        $query->where('assigned_user_id', $this->assigned_user_id);
+        if ($this->assigned_user_id === 'unassigned') {
+            $query->whereNull('assigned_user_id');
+        } else {
+            $query->where('assigned_user_id', $this->assigned_user_id);
+        }
+    }
+
+    // 日付期間フィルター
+    if ($this->date_period) {
+        switch ($this->date_period) {
+            case 'this_month':
+                $query->whereBetween('received_at', [now()->startOfMonth(), now()->endOfMonth()]);
+                break;
+            case 'last_month':
+                $query->whereBetween('received_at', [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()]);
+                break;
+            case 'this_year':
+                $query->whereBetween('received_at', [now()->startOfYear(), now()->endOfYear()]);
+                break;
+            case 'custom':
+                if ($this->date_from) {
+                    $query->where('received_at', '>=', $this->date_from);
+                }
+                if ($this->date_to) {
+                    $query->where('received_at', '<=', $this->date_to . ' 23:59:59');
+                }
+                break;
+        }
     }
 
     // ソート
@@ -114,6 +147,9 @@ $resetFilters = function () {
     $this->assigned_user_id = '';
     $this->sort = 'latest';
     $this->unclosed_only = false;
+    $this->date_from = '';
+    $this->date_to = '';
+    $this->date_period = '';
 };
 
 // ステータスフィルタが変更された時にunclosed_onlyをリセット
@@ -145,7 +181,14 @@ $onStatusChange = function () {
         </div>
 
         <!-- フィルタ状態表示 -->
-        @if ($this->unclosed_only || $this->status || $this->priority || $this->category_id || $this->search)
+        @if (
+            $this->unclosed_only ||
+                $this->status ||
+                $this->priority ||
+                $this->category_id ||
+                $this->assigned_user_id ||
+                $this->date_period ||
+                $this->search)
             <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
@@ -198,6 +241,30 @@ $onStatusChange = function () {
                                     </span>
                                 @endif
                             @endif
+                            @if ($this->assigned_user_id)
+                                @php $assignedUser = $this->users->firstWhere('id', $this->assigned_user_id) @endphp
+                                @if ($assignedUser)
+                                    <span
+                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                        担当者: {{ $assignedUser->name }}
+                                    </span>
+                                @endif
+                            @endif
+                            @if ($this->date_period)
+                                <span
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                    期間:
+                                    {{ match ($this->date_period) {
+                                        'this_month' => '今月',
+                                        'last_month' => '先月',
+                                        'this_year' => '今年',
+                                        'custom' => ($this->date_from ? $this->date_from : '開始日未設定') .
+                                            ' ～ ' .
+                                            ($this->date_to ? $this->date_to : '終了日未設定'),
+                                        default => $this->date_period,
+                                    } }}
+                                </span>
+                            @endif
                             @if ($this->search)
                                 <span
                                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
@@ -217,7 +284,7 @@ $onStatusChange = function () {
 
     <!-- 検索・フィルター -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
             <!-- 検索 -->
             <div>
                 <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -273,6 +340,21 @@ $onStatusChange = function () {
                 </select>
             </div>
 
+            <!-- 担当者フィルター -->
+            <div>
+                <label for="assigned_user" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    担当者
+                </label>
+                <select id="assigned_user" wire:model.live="assigned_user_id"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="">すべての担当者</option>
+                    <option value="unassigned">未割り当て</option>
+                    @foreach ($this->users as $user)
+                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
             <!-- ソート -->
             <div>
                 <label for="sort" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -299,7 +381,42 @@ $onStatusChange = function () {
                     </optgroup>
                 </select>
             </div>
+
+            <!-- 日付期間フィルター -->
+            <div>
+                <label for="date_period" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    受信期間
+                </label>
+                <select id="date_period" wire:model.live="date_period"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="">すべての期間</option>
+                    <option value="this_month">今月</option>
+                    <option value="last_month">先月</option>
+                    <option value="this_year">今年</option>
+                    <option value="custom">カスタム期間</option>
+                </select>
+            </div>
         </div>
+
+        <!-- カスタム期間フィルター -->
+        @if ($this->date_period === 'custom')
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div>
+                    <label for="date_from" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        開始日
+                    </label>
+                    <input type="date" id="date_from" wire:model.live="date_from"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label for="date_to" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        終了日
+                    </label>
+                    <input type="date" id="date_to" wire:model.live="date_to"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                </div>
+            </div>
+        @endif
 
         <div class="flex justify-between items-center">
             <button wire:click="resetFilters"
