@@ -144,6 +144,9 @@ $saveResponse = function () {
     $this->inquiry->update($updateData);
 
     session()->flash('message', '回答を保存しました。');
+
+    // 問い合わせ管理画面に遷移
+    return redirect()->route('inquiries.index');
 };
 
 // 編集モードの制御
