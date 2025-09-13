@@ -27,6 +27,10 @@ Route::middleware(['auth'])->group(function () {
     // カテゴリ管理
     Volt::route('categories', 'categories.index')->name('categories.index');
 
+    // レポート
+    Volt::route('reports', 'reports.index')->name('reports.index');
+    Volt::route('reports/trends', 'reports.trends')->name('reports.trends');
+
     // 設定
     Route::redirect('settings', 'settings/profile');
     Volt::route('settings/profile', 'settings.profile')->name('settings.profile');
