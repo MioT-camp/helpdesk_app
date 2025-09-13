@@ -3,6 +3,7 @@
 use App\Models\FAQ;
 use App\Models\Inquiry;
 use App\Models\Category;
+use App\Models\Todo;
 use function Livewire\Volt\{computed, state, mount};
 
 $stats = computed(function () {
@@ -30,6 +31,22 @@ $stats = computed(function () {
         // 期限切れ問い合わせ（回答期限が過ぎていて、クローズされていない）
         'overdue_inquiries' => Inquiry::where('response_deadline', '<', $now)
             ->whereNotIn('status', ['closed'])
+            ->count(),
+        // ToDo統計
+        'total_todos' => Todo::where('user_id', auth()->id())->count(),
+        'pending_todos' => Todo::where('user_id', auth()->id())
+            ->where('is_completed', false)
+            ->count(),
+        'completed_todos' => Todo::where('user_id', auth()->id())
+            ->where('is_completed', true)
+            ->count(),
+        'high_priority_todos' => Todo::where('user_id', auth()->id())
+            ->where('is_completed', false)
+            ->where('priority', 'high')
+            ->count(),
+        'overdue_todos' => Todo::where('user_id', auth()->id())
+            ->where('is_completed', false)
+            ->where('due_date', '<', $now->toDateString())
             ->count(),
     ];
 });
@@ -106,28 +123,6 @@ $loadHotFaqs = function () {
             </div>
         </a>
 
-        <!-- 未対応問い合わせ（クローズ以外） -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div class="flex items-center">
-                <div class="p-3 rounded-full bg-red-100 dark:bg-red-900">
-                    <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                </div>
-                <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">未対応</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->stats['unclosed_inquiries']) }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">回答作成済:
-                        {{ number_format($this->stats['completed_inquiries']) }}</p>
-                    <p class="text-xs text-red-600 dark:text-red-400 font-medium">期限切れ:
-                        {{ number_format($this->stats['overdue_inquiries']) }}</p>
-                </div>
-            </div>
-        </div>
-
         <!-- 今月の対応状況 -->
         <a href="{{ route('inquiries.monthly') }}"
             class="block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer">
@@ -144,6 +139,34 @@ $loadHotFaqs = function () {
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
                         {{ number_format($this->stats['monthly_total_inquiries']) }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ now()->format('Y年n月') }}の総数</p>
+                </div>
+                <div class="ml-auto">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </div>
+        </a>
+
+        <!-- ToDo状況 -->
+        <a href="{{ route('todos.index') }}"
+            class="block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-purple-100 dark:bg-purple-900">
+                    <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">ToDo状況</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ number_format($this->stats['pending_todos']) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">完了済み:
+                        {{ number_format($this->stats['completed_todos']) }}</p>
+                    <p class="text-xs text-red-600 dark:text-red-400 font-medium">期限切れ:
+                        {{ number_format($this->stats['overdue_todos']) }}</p>
                 </div>
                 <div class="ml-auto">
                     <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

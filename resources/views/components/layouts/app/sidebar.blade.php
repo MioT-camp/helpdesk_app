@@ -25,6 +25,8 @@
                     :current="request()->routeIs('categories.*')" wire:navigate>カテゴリ管理</flux:navlist.item>
                 <flux:navlist.item icon="chart-bar" :href="route('reports.index')"
                     :current="request()->routeIs('reports.*')" wire:navigate>レポート</flux:navlist.item>
+                <flux:navlist.item icon="clipboard-document-list" :href="route('todos.index')"
+                    :current="request()->routeIs('todos.*')" wire:navigate>ToDoリスト</flux:navlist.item>
             </flux:navlist.group>
         </flux:navlist>
 

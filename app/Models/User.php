@@ -141,6 +141,14 @@ class User extends Authenticatable
     }
 
     /**
+     * 作成したToDoとのリレーション
+     */
+    public function todos(): HasMany
+    {
+        return $this->hasMany(Todo::class, 'user_id');
+    }
+
+    /**
      * アクティブなユーザーのスコープ
      */
     public function scopeActive($query)
