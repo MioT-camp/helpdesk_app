@@ -59,11 +59,21 @@ $exportCsv = function () {
         fwrite($file, "\xEF\xBB\xBF");
 
         // ヘッダー行
-        fputcsv($file, ['受信日時', '問い合わせID', '顧客ID', '都道府県', '属性', '件名', '回答内容', '担当者']);
+        fputcsv($file, ['受信日時', '問い合わせID', '顧客ID', '都道府県', '属性', '件名', '回答内容', 'ステータス', '担当者']);
 
         // データ行
         foreach ($inquiries as $inquiry) {
-            fputcsv($file, [$inquiry->received_at->format('Y-m-d H:i:s'), $inquiry->inquiry_id, $inquiry->customer_id ?? '', $inquiry->prefecture ?? '', $inquiry->user_attribute ?? '', $inquiry->subject, $inquiry->response ?? '', $inquiry->assignedUser->name ?? '']);
+            // ステータスを日本語に変換
+            $statusLabels = [
+                'pending' => '未対応',
+                'in_progress' => '対応中',
+                'completed' => '回答作成済',
+                'closed' => '回答送付済',
+                'no_response' => '回答不要',
+            ];
+            $statusLabel = $statusLabels[$inquiry->status] ?? $inquiry->status;
+
+            fputcsv($file, [$inquiry->received_at->format('Y-m-d H:i:s'), $inquiry->inquiry_id, $inquiry->customer_id ?? '', $inquiry->prefecture ?? '', $inquiry->user_attribute ?? '', $inquiry->subject, $inquiry->response ?? '', $statusLabel, $inquiry->assignedUser->name ?? '']);
         }
 
         fclose($file);

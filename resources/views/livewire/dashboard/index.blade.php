@@ -128,8 +128,9 @@ $loadHotFaqs = function () {
             </div>
         </div>
 
-        <!-- 今月の問い合わせ総数 -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <!-- 今月の対応状況 -->
+        <a href="{{ route('inquiries.monthly') }}"
+            class="block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer">
             <div class="flex items-center">
                 <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900">
                     <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor"
@@ -139,13 +140,18 @@ $loadHotFaqs = function () {
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">今月の問い合わせ総数</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">今月の対応状況</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
                         {{ number_format($this->stats['monthly_total_inquiries']) }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ now()->format('Y年n月') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ now()->format('Y年n月') }}の総数</p>
+                </div>
+                <div class="ml-auto">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     <!-- クイックアクション -->

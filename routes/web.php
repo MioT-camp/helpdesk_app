@@ -21,6 +21,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('inquiries', 'inquiries.index')->name('inquiries.index');
     Volt::route('inquiries/create', 'inquiries.create')->name('inquiries.create');
     Volt::route('inquiries/today', 'inquiries.today')->name('inquiries.today');
+    Volt::route('inquiries/monthly', 'inquiries.monthly')->name('inquiries.monthly');
     Volt::route('inquiries/{inquiry_id}', 'inquiries.show')->name('inquiries.show');
 
     // カテゴリ管理
