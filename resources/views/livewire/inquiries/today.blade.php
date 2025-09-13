@@ -1,48 +1,117 @@
 <?php
 
 use App\Models\Inquiry;
+use App\Models\User;
 use Illuminate\Http\Response;
 use function Livewire\Volt\{computed, state, mount};
 
-$todayInquiries = computed(function () {
+// 選択された日付の問い合わせデータを取得
+$selectedDateInquiries = computed(function () {
+    $selectedDate = $this->selectedDate ?: now()->toDateString();
+
     return Inquiry::with(['category', 'assignedUser'])
-        ->whereDate('received_at', now()->toDateString())
+        ->whereDate('received_at', $selectedDate)
         ->orderBy('received_at', 'desc')
         ->get();
 });
 
-$todayStats = computed(function () {
-    $today = now()->toDateString();
+// 選択された日付の統計情報
+$selectedDateStats = computed(function () {
+    $selectedDate = $this->selectedDate ?: now()->toDateString();
 
     return [
-        'total' => Inquiry::whereDate('received_at', $today)->count(),
-        'closed' => Inquiry::whereDate('received_at', $today)->where('status', 'closed')->count(),
-        'completed' => Inquiry::whereDate('received_at', $today)->where('status', 'completed')->count(),
+        'total' => Inquiry::whereDate('received_at', $selectedDate)->count(),
+        'closed' => Inquiry::whereDate('received_at', $selectedDate)->where('status', 'closed')->count(),
+        'completed' => Inquiry::whereDate('received_at', $selectedDate)->where('status', 'completed')->count(),
     ];
 });
 
-// 回答作成済の問い合わせデータを取得（CSV出力用）
-$completedInquiries = computed(function () {
-    return Inquiry::with(['assignedUser'])
-        ->whereDate('received_at', now()->toDateString())
-        ->where('status', 'completed')
-        ->orderBy('received_at', 'desc')
-        ->get();
+// 担当者一覧を取得
+$users = computed(function () {
+    return User::where('is_active', true)->orderBy('name')->get();
+});
+
+// フィルタ状態
+state([
+    'selectedDate' => '',
+    'selectedStatus' => '',
+    'selectedUser' => '',
+    'searchKeyword' => '',
+]);
+
+// 初期化時に現在の日付を設定
+mount(function () {
+    $this->selectedDate = now()->toDateString();
+});
+
+// フィルタ適用後の問い合わせデータ
+$filteredInquiries = computed(function () {
+    $selectedDate = $this->selectedDate ?: now()->toDateString();
+
+    $query = Inquiry::with(['category', 'assignedUser'])->whereDate('received_at', $selectedDate);
+
+    // ステータスフィルタ
+    if ($this->selectedStatus) {
+        $query->where('status', $this->selectedStatus);
+    }
+
+    // 担当者フィルタ
+    if ($this->selectedUser) {
+        $query->where('assigned_user_id', $this->selectedUser);
+    }
+
+    // 検索キーワードフィルタ
+    if ($this->searchKeyword) {
+        $query->where(function ($q) {
+            $q->where('subject', 'like', '%' . $this->searchKeyword . '%')
+                ->orWhere('content', 'like', '%' . $this->searchKeyword . '%')
+                ->orWhere('customer_id', 'like', '%' . $this->searchKeyword . '%');
+        });
+    }
+
+    return $query->orderBy('received_at', 'desc')->get();
+});
+
+// CSV出力用のデータ取得
+$csvInquiries = computed(function () {
+    $selectedDate = $this->selectedDate ?: now()->toDateString();
+
+    $query = Inquiry::with(['assignedUser'])->whereDate('received_at', $selectedDate);
+
+    // フィルタを適用
+    if ($this->selectedStatus) {
+        $query->where('status', $this->selectedStatus);
+    }
+
+    if ($this->selectedUser) {
+        $query->where('assigned_user_id', $this->selectedUser);
+    }
+
+    if ($this->searchKeyword) {
+        $query->where(function ($q) {
+            $q->where('subject', 'like', '%' . $this->searchKeyword . '%')
+                ->orWhere('content', 'like', '%' . $this->searchKeyword . '%')
+                ->orWhere('customer_id', 'like', '%' . $this->searchKeyword . '%');
+        });
+    }
+
+    return $query->orderBy('received_at', 'desc')->get();
 });
 
 // CSV出力メソッド
 $exportCsv = function () {
-    $inquiries = $this->completedInquiries;
+    $inquiries = $this->csvInquiries;
 
     if ($inquiries->isEmpty()) {
         $this->dispatch('show-message', [
             'type' => 'warning',
-            'message' => '回答作成済の問い合わせがありません。',
+            'message' => '出力する問い合わせがありません。',
         ]);
         return;
     }
 
-    $filename = 'inquiries_completed_' . now()->format('Y-m-d') . '.csv';
+    $selectedDate = $this->selectedDate ?: now()->toDateString();
+    $filename = 'inquiries_' . $selectedDate . '.csv';
 
     $headers = [
         'Content-Type' => 'text/csv; charset=UTF-8',
@@ -82,15 +151,23 @@ $exportCsv = function () {
     return response()->stream($callback, 200, $headers);
 };
 
+// フィルタリセット
+$resetFilters = function () {
+    $this->selectedDate = now()->toDateString();
+    $this->selectedStatus = '';
+    $this->selectedUser = '';
+    $this->searchKeyword = '';
+};
+
 ?>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">本日の問い合わせ</h1>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">日別問い合わせ一覧</h1>
                 <p class="mt-2 text-gray-600 dark:text-gray-400">
-                    {{ now()->format('Y年n月j日') }}に受信した問い合わせ一覧
+                    {{ \Carbon\Carbon::parse($this->selectedDate ?: now()->toDateString())->format('Y年n月j日') }}に受信した問い合わせ一覧
                 </p>
             </div>
             <a href="{{ route('dashboard') }}"
@@ -116,9 +193,9 @@ $exportCsv = function () {
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">本日総数</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">総数</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->todayStats['total']) }}件
+                        {{ number_format($this->selectedDateStats['total']) }}件
                     </p>
                 </div>
             </div>
@@ -136,7 +213,7 @@ $exportCsv = function () {
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">クローズ数</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->todayStats['closed']) }}件
+                        {{ number_format($this->selectedDateStats['closed']) }}件
                     </p>
                 </div>
             </div>
@@ -155,9 +232,63 @@ $exportCsv = function () {
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">回答作成済</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->todayStats['completed']) }}件
+                        {{ number_format($this->selectedDateStats['completed']) }}件
                     </p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- フィルタ -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">フィルタ</h2>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <!-- 日付選択 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">日付</label>
+                <input type="date" wire:model.live="selectedDate"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            </div>
+
+            <!-- ステータスフィルタ -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ステータス</label>
+                <select wire:model.live="selectedStatus"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    <option value="">すべて</option>
+                    <option value="pending">未対応</option>
+                    <option value="in_progress">対応中</option>
+                    <option value="completed">回答作成済</option>
+                    <option value="closed">クローズ</option>
+                    <option value="no_response">回答不要</option>
+                </select>
+            </div>
+
+            <!-- 担当者フィルタ -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">担当者</label>
+                <select wire:model.live="selectedUser"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    <option value="">すべて</option>
+                    @foreach ($this->users as $user)
+                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <!-- 検索キーワード -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">検索</label>
+                <input type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="件名、内容、顧客IDで検索"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            </div>
+
+            <!-- リセットボタン -->
+            <div class="flex items-end">
+                <button wire:click="resetFilters"
+                    class="w-full px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors">
+                    フィルタリセット
+                </button>
             </div>
         </div>
     </div>
@@ -166,23 +297,25 @@ $exportCsv = function () {
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">問い合わせ一覧</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    問い合わせ一覧 ({{ $this->filteredInquiries->count() }}件)
+                </h2>
                 <div class="flex items-center space-x-3">
-                    @if ($this->todayStats['completed'] > 0)
+                    @if ($this->filteredInquiries->count() > 0)
                         <button wire:click="exportCsv"
                             class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            CSV出力（回答作成済）
+                            CSV出力
                         </button>
                     @endif
                 </div>
             </div>
         </div>
 
-        @if ($this->todayInquiries->count() > 0)
+        @if ($this->filteredInquiries->count() > 0)
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-gray-50 dark:bg-gray-900">
@@ -218,7 +351,7 @@ $exportCsv = function () {
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        @foreach ($this->todayInquiries as $inquiry)
+                        @foreach ($this->filteredInquiries as $inquiry)
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                                     {{ $inquiry->received_at->format('H:i') }}
@@ -286,12 +419,25 @@ $exportCsv = function () {
             </div>
         @else
             <div class="p-6 text-center">
-                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">本日の問い合わせはありません</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">今日はまだ問い合わせが受信されていません。</p>
+                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    @if ($this->selectedStatus || $this->selectedUser || $this->searchKeyword)
+                        フィルタ条件に一致する問い合わせがありません
+                    @else
+                        選択された日付の問い合わせはありません
+                    @endif
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    @if ($this->selectedStatus || $this->selectedUser || $this->searchKeyword)
+                        フィルタをリセットして再度お試しください。
+                    @else
+                        選択された日付にはまだ問い合わせが受信されていません。
+                    @endif
+                </p>
             </div>
         @endif
     </div>
