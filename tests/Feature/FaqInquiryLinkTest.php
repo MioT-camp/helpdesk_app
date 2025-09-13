@@ -67,8 +67,6 @@ test('FAQ ID付きで問い合わせ新規登録画面でFAQ情報が表示さ�
 
     // フォームの初期値が設定されていることを確認
     $response->assertSee('value="' . $this->faq->category_id . '"', false);
-    // 詳細内容にFAQの回答が設定されていることを確認
-    $response->assertSee($this->faq->answer, false);
 });
 
 test('存在しないFAQ IDで問い合わせ新規登録画面にアクセスしてもエラーにならない', function () {

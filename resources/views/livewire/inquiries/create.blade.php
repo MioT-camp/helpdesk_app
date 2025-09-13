@@ -39,7 +39,6 @@ mount(function () {
             $this->linked_faq = $faq;
             $this->linked_faq_ids = [$faq->faq_id];
             $this->category_id = $faq->category_id;
-            $this->content = $faq->answer;
         }
     }
 });

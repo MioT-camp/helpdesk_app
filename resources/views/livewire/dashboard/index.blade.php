@@ -11,10 +11,10 @@ $stats = computed(function () {
     $endOfMonth = $now->copy()->endOfMonth();
 
     return [
-        // 今月の問い合わせ総数（クローズ数）
-        'monthly_closed_inquiries' => Inquiry::where('status', 'closed')
-            ->whereBetween('received_at', [$startOfMonth, $endOfMonth])
-            ->count(),
+        // 本日の問い合わせ総数
+        'today_total_inquiries' => Inquiry::whereDate('received_at', $now->toDateString())->count(),
+        // 本日のクローズ数
+        'today_closed_inquiries' => Inquiry::where('status', 'closed')->whereDate('received_at', $now->toDateString())->count(),
         // 未対応（クローズ以外）
         'unclosed_inquiries' => Inquiry::whereNotIn('status', ['closed'])->count(),
         // 回答作成済（completed）
@@ -80,8 +80,9 @@ $loadHotFaqs = function () {
 
     <!-- 統計カード -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <!-- 今月の問い合わせ総数（クローズ数） -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <!-- 本日の対応状況 -->
+        <a href="{{ route('inquiries.today') }}"
+            class="block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer">
             <div class="flex items-center">
                 <div class="p-3 rounded-full bg-green-100 dark:bg-green-900">
                     <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor"
@@ -91,14 +92,19 @@ $loadHotFaqs = function () {
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">今月のクローズ数</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">本日の対応状況</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ number_format($this->stats['monthly_closed_inquiries']) }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">今月総数:
-                        {{ number_format($this->stats['monthly_total_inquiries']) }}</p>
+                        {{ number_format($this->stats['today_closed_inquiries']) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">本日総数:
+                        {{ number_format($this->stats['today_total_inquiries']) }}</p>
+                </div>
+                <div class="ml-auto">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
                 </div>
             </div>
-        </div>
+        </a>
 
         <!-- 未対応問い合わせ（クローズ以外） -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -201,8 +207,8 @@ $loadHotFaqs = function () {
                 <div class="flex-shrink-0">
                     <div
                         class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
-                        <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
