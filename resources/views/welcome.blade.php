@@ -1832,11 +1832,11 @@
 <body class="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed"
     style="background-image: url('/main_background.jpg'); background-size: 100% 100%;">
     <!-- 透過オーバーレイ -->
-    <div class="absolute inset-0" style="background-color: rgba(0, 0, 0, 0.6); z-index: 1;"></div>
+    <div class="absolute inset-0" style="background-color: rgba(247, 243, 243, 0.66); z-index: 1;"></div>
     <div class="relative min-h-screen flex items-center justify-center" style="z-index: 2;">
         <div class="text-center">
             <!-- メインタイトル -->
-            <h1 class="font-bold text-white mb-12 drop-shadow-lg" style="font-size: 6rem; line-height: 1;">
+            <h1 class="font-bold mb-12 drop-shadow-lg" style="font-size: 6rem; line-height: 1; color: #2d2d2d;">
                 Helpdesk Hub
             </h1>
 
