@@ -28,6 +28,15 @@
             </flux:navlist.group>
         </flux:navlist>
 
+        @if (auth()->user()->isAdmin())
+            <flux:navlist variant="outline">
+                <flux:navlist.group :heading="__('管理者')" class="grid">
+                    <flux:navlist.item icon="users" :href="route('admin.users.index')"
+                        :current="request()->routeIs('admin.users.*')" wire:navigate>ユーザー管理</flux:navlist.item>
+                </flux:navlist.group>
+            </flux:navlist>
+        @endif
+
         <flux:spacer />
 
         <flux:navlist variant="outline">

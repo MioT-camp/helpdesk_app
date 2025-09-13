@@ -38,4 +38,14 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
 });
 
+// 管理者専用ルート
+Route::middleware(['auth', 'admin'])->group(function () {
+    // ユーザー管理
+    Volt::route('admin/users', 'admin.users.index')->name('admin.users.index');
+    Volt::route('admin/users/create', 'admin.users.create')->name('admin.users.create');
+    Volt::route('admin/users/{user_id}', 'admin.users.show')->name('admin.users.show');
+    Volt::route('admin/users/{user_id}/edit', 'admin.users.edit')->name('admin.users.edit');
+    Volt::route('admin/users-test', 'admin.users.test')->name('admin.users.test');
+});
+
 require __DIR__ . '/auth.php';
