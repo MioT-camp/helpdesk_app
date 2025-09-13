@@ -76,6 +76,7 @@ class DatabaseSeeder extends Seeder
                 FaqTagSeeder::class,       // 6. FAQ-タグ紐付け
                 InquiryFaqSeeder::class,   // 7. 問い合わせ-FAQ紐付け
                 FaqViewSeeder::class,      // 8. FAQ閲覧履歴
+                TodoSeeder::class,         // 9. ToDo
             ]);
         }
     }

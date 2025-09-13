@@ -31,6 +31,11 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('reports', 'reports.index')->name('reports.index');
     Volt::route('reports/trends', 'reports.trends')->name('reports.trends');
 
+    // ToDo管理
+    Volt::route('todos', 'todos.index')->name('todos.index');
+    Volt::route('todos/create', 'todos.create')->name('todos.create');
+    Volt::route('todos/{todo}/edit', 'todos.edit')->name('todos.edit');
+
     // 設定
     Route::redirect('settings', 'settings/profile');
     Volt::route('settings/profile', 'settings.profile')->name('settings.profile');
