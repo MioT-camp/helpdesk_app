@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Inquiry;
+use Illuminate\Http\Response;
 use function Livewire\Volt\{computed, state, mount};
 
 $todayInquiries = computed(function () {
@@ -16,8 +17,60 @@ $todayStats = computed(function () {
     return [
         'total' => Inquiry::whereDate('received_at', $today)->count(),
         'closed' => Inquiry::whereDate('received_at', $today)->where('status', 'closed')->count(),
+        'completed' => Inquiry::whereDate('received_at', $today)->where('status', 'completed')->count(),
     ];
 });
+
+// 回答作成済の問い合わせデータを取得（CSV出力用）
+$completedInquiries = computed(function () {
+    return Inquiry::with(['assignedUser'])
+        ->whereDate('received_at', now()->toDateString())
+        ->where('status', 'completed')
+        ->orderBy('received_at', 'desc')
+        ->get();
+});
+
+// CSV出力メソッド
+$exportCsv = function () {
+    $inquiries = $this->completedInquiries;
+
+    if ($inquiries->isEmpty()) {
+        $this->dispatch('show-message', [
+            'type' => 'warning',
+            'message' => '回答作成済の問い合わせがありません。',
+        ]);
+        return;
+    }
+
+    $filename = 'inquiries_completed_' . now()->format('Y-m-d') . '.csv';
+
+    $headers = [
+        'Content-Type' => 'text/csv; charset=UTF-8',
+        'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
+    ];
+
+    $callback = function () use ($inquiries) {
+        $file = fopen('php://output', 'w');
+
+        // BOMを追加してExcelで文字化けを防ぐ
+        fwrite($file, "\xEF\xBB\xBF");
+
+        // ヘッダー行
+        fputcsv($file, ['受信日時', '問い合わせID', '顧客ID', '都道府県', '属性', '件名', '回答内容', '担当者']);
+
+        // データ行
+        foreach ($inquiries as $inquiry) {
+            fputcsv($file, [$inquiry->received_at->format('Y-m-d H:i:s'), $inquiry->inquiry_id, $inquiry->customer_id ?? '', $inquiry->prefecture ?? '', $inquiry->user_attribute ?? '', $inquiry->subject, $inquiry->response ?? '', $inquiry->assignedUser->name ?? '']);
+        }
+
+        fclose($file);
+    };
+
+    return response()->stream($callback, 200, $headers);
+};
 
 ?>
 
@@ -42,7 +95,7 @@ $todayStats = computed(function () {
     </div>
 
     <!-- 統計情報 -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div class="flex items-center">
                 <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900">
@@ -78,12 +131,45 @@ $todayStats = computed(function () {
                 </div>
             </div>
         </div>
+
+        <!-- 回答作成済 -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900">
+                    <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">回答作成済</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ number_format($this->todayStats['completed']) }}件
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 問い合わせ一覧 -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">問い合わせ一覧</h2>
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">問い合わせ一覧</h2>
+                <div class="flex items-center space-x-3">
+                    @if ($this->todayStats['completed'] > 0)
+                        <button wire:click="exportCsv"
+                            class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            CSV出力（回答作成済）
+                        </button>
+                    @endif
+                </div>
+            </div>
         </div>
 
         @if ($this->todayInquiries->count() > 0)
