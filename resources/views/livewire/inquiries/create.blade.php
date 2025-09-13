@@ -7,7 +7,7 @@ use App\Models\FAQ;
 use App\Livewire\Actions\SearchRelatedFaqs;
 use App\Services\BusinessDayCalculator;
 use Illuminate\Validation\Rule;
-use function Livewire\Volt\{state, computed, rules};
+use function Livewire\Volt\{state, computed, rules, mount};
 
 state([
     'sender_email' => '',
@@ -24,10 +24,25 @@ state([
     'received_at' => '',
     'linked_faq_ids' => [],
     'expanded_faq_id' => null,
+    'linked_faq' => null,
 ]);
 
 $categories = computed(fn() => Category::active()->orderBy('name')->get());
 $users = computed(fn() => User::where('is_active', true)->orderBy('name')->get());
+
+// FAQ IDがクエリパラメータで渡された場合の初期化
+mount(function () {
+    $faqId = request()->query('faq_id');
+    if ($faqId) {
+        $faq = FAQ::with(['category', 'tagRelations'])->find($faqId);
+        if ($faq) {
+            $this->linked_faq = $faq;
+            $this->linked_faq_ids = [$faq->faq_id];
+            $this->category_id = $faq->category_id;
+            $this->content = $faq->answer;
+        }
+    }
+});
 
 // 都道府県リスト
 $prefectures = computed(fn() => ['北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県', '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県', '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県', '鳥取県', '島根県', '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県']);
@@ -165,6 +180,38 @@ $calculateDeadline = function () {
             </div>
         </div>
     </div>
+
+    <!-- 紐づけられたFAQ情報 -->
+    @if ($linked_faq)
+        <div class="mb-6 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        この問い合わせは以下のFAQに紐づけられます
+                    </h3>
+                    <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                style="background-color: {{ $linked_faq->category->color ?? '#6B7280' }}20; color: {{ $linked_faq->category->color ?? '#6B7280' }}">
+                                {{ $linked_faq->category->name }}
+                            </span>
+                            <span class="text-xs text-blue-600 dark:text-blue-400">FAQ #{{ $linked_faq->faq_id }}</span>
+                        </div>
+                        <p class="font-medium">{{ $linked_faq->question }}</p>
+                        <div class="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                            回答: {{ Str::limit($linked_faq->answer, 100) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <!-- 3カラムレイアウト -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">

@@ -158,6 +158,17 @@ mount(function ($faq_id) {
                         </button>
                     </div>
 
+                    <!-- このFAQに紐づけて問い合わせを新規登録 -->
+                    <a href="{{ route('inquiries.create', ['faq_id' => $faq->faq_id]) }}"
+                        class="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                        title="このFAQに紐づけて問い合わせを新規登録">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        問い合わせ登録
+                    </a>
+
                     <a href="{{ route('faqs.edit', $faq->faq_id) }}"
                         class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-md text-sm font-medium transition-colors">
                         編集
@@ -225,7 +236,8 @@ mount(function ($faq_id) {
                     @if ($faq->updated_at->ne($faq->created_at))
                         <div>
                             <dt class="font-medium text-gray-500 dark:text-gray-400">最終更新</dt>
-                            <dd class="mt-1 text-gray-900 dark:text-white">{{ $faq->updated_at->format('Y年m月d日 H:i') }}
+                            <dd class="mt-1 text-gray-900 dark:text-white">
+                                {{ $faq->updated_at->format('Y年m月d日 H:i') }}
                             </dd>
                         </div>
                     @endif
