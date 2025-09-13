@@ -8,7 +8,7 @@
 <body class="min-h-screen antialiased"
     style="background-image: url('/main_background.jpg'); background-size: 100% 100%; background-position: center; background-repeat: no-repeat; background-attachment: fixed;">
     <!-- 透過オーバーレイ -->
-    <div class="absolute inset-0" style="background-color: rgba(247, 243, 243, 0.66); z-index: 1;"></div>
+    <div class="absolute inset-0" style="background-color: rgba(248, 250, 252, 0.7); z-index: 1;"></div>
     <div class="relative min-h-screen flex items-center justify-center" style="z-index: 2;">
         <div class="flex w-full max-w-sm flex-col gap-2"
             style="background-color: rgba(255, 255, 255, 0.9); padding: 32px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
