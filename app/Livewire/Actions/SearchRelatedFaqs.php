@@ -39,6 +39,23 @@ class SearchRelatedFaqs
             return collect();
         }
 
+        // まず指定カテゴリで検索を試行
+        $faqs = $this->searchInCategory($keywords, $categoryId, $limit);
+
+        // 指定カテゴリで結果が少ない場合は、全カテゴリから検索
+        if ($faqs->count() < $limit && $categoryId) {
+            $additionalFaqs = $this->searchInCategory($keywords, null, $limit - $faqs->count());
+            $faqs = $faqs->merge($additionalFaqs);
+        }
+
+        return $faqs->sortByDesc('relevance_score')->take($limit);
+    }
+
+    /**
+     * 指定カテゴリでFAQを検索
+     */
+    private function searchInCategory(array $keywords, ?int $categoryId, int $limit): Collection
+    {
         $query = FAQ::with(['category', 'tagRelations'])
             ->where('is_active', true);
 
@@ -47,28 +64,21 @@ class SearchRelatedFaqs
             $query->where('category_id', $categoryId);
         }
 
-        // キーワード検索（より緩い条件）
-        if (!empty($keywords)) {
-            $query->where(function ($q) use ($keywords) {
-                foreach ($keywords as $keyword) {
-                    $q->orWhere(function ($subQ) use ($keyword) {
-                        $subQ->where('question', 'like', "%{$keyword}%")
-                            ->orWhere('answer', 'like', "%{$keyword}%")
-                            ->orWhere('search_keywords', 'like', "%{$keyword}%")
-                            ->orWhere('tags', 'like', "%{$keyword}%");
-                    });
-                }
-            });
-        } else {
-            // キーワードがない場合は、カテゴリのみで検索
-            if ($categoryId) {
-                $query->where('category_id', $categoryId);
+        // キーワード検索
+        $query->where(function ($q) use ($keywords) {
+            foreach ($keywords as $keyword) {
+                $q->orWhere(function ($subQ) use ($keyword) {
+                    $subQ->where('question', 'like', "%{$keyword}%")
+                        ->orWhere('answer', 'like', "%{$keyword}%")
+                        ->orWhere('search_keywords', 'like', "%{$keyword}%")
+                        ->orWhere('tags', 'like', "%{$keyword}%");
+                });
             }
-        }
+        });
 
         // 関連度スコアを計算してソート
-        $faqs = $query->get()->map(function ($faq) use ($keywords) {
-            $faq->relevance_score = $this->calculateRelevanceScore($faq, $keywords);
+        $faqs = $query->get()->map(function ($faq) use ($keywords, $categoryId) {
+            $faq->relevance_score = $this->calculateRelevanceScore($faq, $keywords, $categoryId);
             return $faq;
         });
 
@@ -128,6 +138,8 @@ class SearchRelatedFaqs
                 'ません',
                 'です',
                 'でした',
+                'が出る',
+                'が出',
                 'が',
                 'を',
                 'に',
@@ -189,7 +201,7 @@ class SearchRelatedFaqs
     /**
      * 関連度スコアを計算
      */
-    private function calculateRelevanceScore(FAQ $faq, array $keywords): float
+    private function calculateRelevanceScore(FAQ $faq, array $keywords, ?int $preferredCategoryId = null): float
     {
         $score = 0;
         $text = mb_strtolower($faq->question . ' ' . $faq->answer . ' ' . $faq->search_keywords . ' ' . $faq->tags);
@@ -214,6 +226,11 @@ class SearchRelatedFaqs
             if (str_contains($faq->search_keywords ?? '', $keyword)) {
                 $score += 2;
             }
+        }
+
+        // カテゴリマッチのボーナス
+        if ($preferredCategoryId && $faq->category_id === $preferredCategoryId) {
+            $score += 2;
         }
 
         // 閲覧回数によるボーナス
