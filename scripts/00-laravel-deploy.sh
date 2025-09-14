@@ -8,14 +8,29 @@ npm install
 echo "Building assets..."
 npm run build
 
+echo "Clearing caches..."
+php artisan cache:clear
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
+echo "Running migrations..."
+php artisan migrate --force
+
+echo "Running seeders..."
+php artisan db:seed --force
+
 echo "Caching config..."
 php artisan config:cache
 
 echo "Caching routes..."
 php artisan route:cache
 
-echo "Running migrations..."
-php artisan migrate --force
-
 echo "Publishing Livewire assets..."
 php artisan livewire:publish --assets
+
+echo "Setting permissions..."
+chown -R www-data:www-data /var/www/html/storage
+chown -R www-data:www-data /var/www/html/bootstrap/cache
+chmod -R 775 /var/www/html/storage
+chmod -R 775 /var/www/html/bootstrap/cache
