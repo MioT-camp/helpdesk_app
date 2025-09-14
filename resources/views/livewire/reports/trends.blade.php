@@ -188,6 +188,95 @@ $monthlyTrends = computed(function () {
     });
 });
 
+// FAQ紐付け統計
+$faqLinkStats = computed(function () {
+    $year = (int) $this->selectedYear;
+    $month = (int) $this->selectedMonth;
+
+    if ($this->reportType === 'yearly') {
+        $startDate = now()->setYear($year)->startOfYear();
+        $endDate = now()->setYear($year)->endOfYear();
+    } else {
+        $startDate = now()->setYear($year)->setMonth($month)->startOfMonth();
+        $endDate = now()->setYear($year)->setMonth($month)->endOfMonth();
+    }
+
+    // FAQ別紐付け件数ランキング
+    $faqRanking = \DB::table('inquiry_faq')
+        ->join('inquiries', 'inquiry_faq.inquiry_id', '=', 'inquiries.inquiry_id')
+        ->join('faqs', 'inquiry_faq.faq_id', '=', 'faqs.faq_id')
+        ->join('categories', 'faqs.category_id', '=', 'categories.id')
+        ->whereBetween('inquiries.received_at', [$startDate, $endDate])
+        ->selectRaw('faqs.faq_id, faqs.question, categories.name as category_name, COUNT(*) as link_count')
+        ->groupBy('faqs.faq_id', 'faqs.question', 'categories.name')
+        ->orderByDesc('link_count')
+        ->limit(10)
+        ->get();
+
+    // FAQ新規作成統計
+    $faqCreationStats = \DB::table('faqs')
+        ->whereBetween('created_at', [$startDate, $endDate])
+        ->selectRaw(
+            '
+            COUNT(*) as total_created,
+            COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_created,
+            COUNT(CASE WHEN is_active = 0 THEN 1 END) as inactive_created
+        ',
+        )
+        ->first();
+
+    // カテゴリ別FAQ紐付け率
+    $categoryLinkRate = \DB::table('inquiries')
+        ->leftJoin('inquiry_faq', 'inquiries.inquiry_id', '=', 'inquiry_faq.inquiry_id')
+        ->leftJoin('categories', 'inquiries.category_id', '=', 'categories.id')
+        ->whereBetween('inquiries.received_at', [$startDate, $endDate])
+        ->selectRaw(
+            '
+            categories.name as category_name,
+            COUNT(inquiries.inquiry_id) as total_inquiries,
+            COUNT(inquiry_faq.inquiry_id) as linked_inquiries,
+            ROUND((COUNT(inquiry_faq.inquiry_id) / COUNT(inquiries.inquiry_id)) * 100, 1) as link_rate
+        ',
+        )
+        ->groupBy('categories.name')
+        ->having('total_inquiries', '>', 0)
+        ->orderByDesc('link_rate')
+        ->get();
+
+    // 月別FAQ作成推移（年次レポートのみ）
+    $monthlyFaqCreationTrends = collect();
+    if ($this->reportType === 'yearly') {
+        $monthlyFaqCreationTrends = collect(range(1, 12))->map(function ($month) use ($year) {
+            $startDate = now()->setYear($year)->setMonth($month)->startOfMonth();
+            $endDate = now()->setYear($year)->setMonth($month)->endOfMonth();
+
+            $totalCreated = \DB::table('faqs')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count();
+
+            $activeCreated = \DB::table('faqs')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->where('is_active', 1)
+                ->count();
+
+            return [
+                'month' => $month,
+                'month_name' => $month . '月',
+                'total_created' => $totalCreated,
+                'active_created' => $activeCreated,
+                'creation_rate' => $totalCreated > 0 ? round(($activeCreated / $totalCreated) * 100, 1) : 0,
+            ];
+        });
+    }
+
+    return [
+        'faq_ranking' => $faqRanking,
+        'faq_creation_stats' => $faqCreationStats,
+        'category_link_rate' => $categoryLinkRate,
+        'monthly_faq_creation_trends' => $monthlyFaqCreationTrends,
+    ];
+});
+
 // 総合統計
 $overallStats = computed(function () {
     $year = (int) $this->selectedYear;
@@ -210,11 +299,22 @@ $overallStats = computed(function () {
         ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, received_at, first_response_at)) as avg_hours')
         ->value('avg_hours');
 
+    // FAQ紐付け関連統計
+    $totalLinkedInquiries = \DB::table('inquiries')
+        ->join('inquiry_faq', 'inquiries.inquiry_id', '=', 'inquiry_faq.inquiry_id')
+        ->whereBetween('inquiries.received_at', [$startDate, $endDate])
+        ->distinct('inquiries.inquiry_id')
+        ->count('inquiries.inquiry_id');
+
+    $linkRate = $total > 0 ? round(($totalLinkedInquiries / $total) * 100, 1) : 0;
+
     return [
         'total' => $total,
         'completed' => $completed,
         'completion_rate' => $total > 0 ? ($completed / $total) * 100 : 0,
         'avg_response_time' => $avgResponseTime ? round($avgResponseTime, 1) : 0,
+        'total_linked_inquiries' => $totalLinkedInquiries,
+        'link_rate' => $linkRate,
     ];
 });
 
@@ -276,7 +376,7 @@ $overallStats = computed(function () {
     </div>
 
     <!-- 総合統計 -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div class="text-center">
                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">総問い合わせ数</p>
@@ -298,6 +398,17 @@ $overallStats = computed(function () {
                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">完了率</p>
                 <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">
                     {{ number_format($this->overallStats['completion_rate'], 1) }}%
+                </p>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div class="text-center">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">FAQ紐付け率</p>
+                <p class="text-3xl font-bold text-orange-600 dark:text-orange-400">
+                    {{ $this->overallStats['link_rate'] }}%
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {{ number_format($this->overallStats['total_linked_inquiries']) }}件紐付け済み
                 </p>
             </div>
         </div>
@@ -351,6 +462,175 @@ $overallStats = computed(function () {
                         </div>
                     </div>
                 @endforeach
+            </div>
+        </div>
+    </div>
+
+    <!-- FAQ紐付け統計 -->
+    <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">FAQ紐付け統計</h2>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- FAQ別紐付け件数ランキング -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">FAQ別紐付け件数ランキング（上位10位）</h3>
+                <div class="space-y-3">
+                    @foreach ($this->faqLinkStats['faq_ranking'] as $index => $faq)
+                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <div
+                                    class="flex items-center justify-center w-8 h-8 bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 rounded-full text-sm font-bold">
+                                    {{ $index + 1 }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                        {{ Str::limit($faq->question, 40) }}
+                                    </p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $faq->category_name }}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-lg font-bold text-orange-600 dark:text-orange-400">
+                                    {{ $faq->link_count }}件</p>
+                            </div>
+                        </div>
+                    @endforeach
+                    @if ($this->faqLinkStats['faq_ranking']->isEmpty())
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p>FAQ紐付けデータがありません</p>
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+            <!-- FAQ新規作成統計 -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">FAQ新規作成統計</h3>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="text-center p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">総作成数</p>
+                            <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                {{ number_format($this->faqLinkStats['faq_creation_stats']->total_created ?? 0) }}
+                            </p>
+                        </div>
+                        <div class="text-center p-3 bg-green-50 dark:bg-green-900 rounded-lg">
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">公開済み</p>
+                            <p class="text-2xl font-bold text-green-600 dark:text-green-400">
+                                {{ number_format($this->faqLinkStats['faq_creation_stats']->active_created ?? 0) }}
+                            </p>
+                        </div>
+                        <div class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">非公開</p>
+                            <p class="text-2xl font-bold text-gray-600 dark:text-gray-400">
+                                {{ number_format($this->faqLinkStats['faq_creation_stats']->inactive_created ?? 0) }}
+                            </p>
+                        </div>
+                    </div>
+
+                    @if (($this->faqLinkStats['faq_creation_stats']->total_created ?? 0) > 0)
+                        @php
+                            $creationRate = round(
+                                (($this->faqLinkStats['faq_creation_stats']->active_created ?? 0) /
+                                    $this->faqLinkStats['faq_creation_stats']->total_created) *
+                                    100,
+                                1,
+                            );
+                        @endphp
+                        <div class="mt-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">公開率</span>
+                                <span
+                                    class="text-sm font-medium text-gray-900 dark:text-white">{{ $creationRate }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div class="bg-green-600 h-2 rounded-full" style="width: {{ $creationRate }}%"></div>
+                            </div>
+                        </div>
+                    @else
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p>FAQ作成データがありません</p>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- カテゴリ別FAQ紐付け率 -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">カテゴリ別FAQ紐付け率</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-900">
+                        <tr>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                カテゴリ</th>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                総問い合わせ数</th>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                紐付け済み</th>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                紐付け率</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        @foreach ($this->faqLinkStats['category_link_rate'] as $category)
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                    {{ $category->category_name ?? '未分類' }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                    {{ number_format($category->total_inquiries) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                    {{ number_format($category->linked_inquiries) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                            <div class="bg-orange-600 h-2 rounded-full"
+                                                style="width: {{ $category->link_rate }}%"></div>
+                                        </div>
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                            {{ $category->link_rate >= 50
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                : ($category->link_rate >= 25
+                                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200') }}">
+                                            {{ $category->link_rate }}%
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                @if ($this->faqLinkStats['category_link_rate']->isEmpty())
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p>カテゴリ別紐付け率データがありません</p>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -455,50 +735,109 @@ $overallStats = computed(function () {
 
     <!-- 月別推移（年次レポートのみ） -->
     @if ($this->reportType === 'yearly')
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">月別推移</h3>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead class="bg-gray-50 dark:bg-gray-900">
-                        <tr>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                月</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                総数</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                完了数</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                完了率</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        @foreach ($this->monthlyTrends as $trend)
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 月別問い合わせ推移 -->
+            <div
+                class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">月別問い合わせ推移</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-900">
                             <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                    {{ $trend['month_name'] }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                    {{ $trend['total'] }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                    {{ $trend['completed'] }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                    <span
-                                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                    {{ $trend['completion_rate'] >= 80
-                                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                        : ($trend['completion_rate'] >= 60
-                                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200') }}">
-                                        {{ number_format($trend['completion_rate'], 1) }}%
-                                    </span>
-                                </td>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    月</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    総数</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    完了数</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    完了率</th>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            @foreach ($this->monthlyTrends as $trend)
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        {{ $trend['month_name'] }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        {{ $trend['total'] }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        {{ $trend['completed'] }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                        {{ $trend['completion_rate'] >= 80
+                                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                            : ($trend['completion_rate'] >= 60
+                                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200') }}">
+                                            {{ number_format($trend['completion_rate'], 1) }}%
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 月別FAQ作成推移 -->
+            <div
+                class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">月別FAQ作成推移</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    月</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    総作成数</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    公開済み</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    公開率</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            @foreach ($this->faqLinkStats['monthly_faq_creation_trends'] as $trend)
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        {{ $trend['month_name'] }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        {{ $trend['total_created'] }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        {{ $trend['active_created'] }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                        <div class="flex items-center space-x-2">
+                                            <div class="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                                <div class="bg-green-600 h-2 rounded-full"
+                                                    style="width: {{ $trend['creation_rate'] }}%"></div>
+                                            </div>
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                                {{ $trend['creation_rate'] >= 80
+                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                    : ($trend['creation_rate'] >= 60
+                                                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200') }}">
+                                                {{ $trend['creation_rate'] }}%
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     @endif

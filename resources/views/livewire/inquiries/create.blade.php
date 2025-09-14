@@ -114,7 +114,6 @@ $save = function () {
         $pivotData = [];
         foreach ($this->linked_faq_ids as $faqId) {
             $pivotData[$faqId] = [
-                'relevance' => 5, // デフォルト関連度
                 'linked_by' => auth()->id(),
                 'created_at' => now(),
             ];

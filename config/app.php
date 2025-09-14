@@ -13,8 +13,8 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Helpdesk Hub'),
-
+    /* 'name' => env('APP_NAME', 'Helpdesk Hub'), */
+    'name' => 'Helpdesk Hub',
     /*
     |--------------------------------------------------------------------------
     | Application Environment
