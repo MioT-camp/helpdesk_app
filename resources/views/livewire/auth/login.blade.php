@@ -81,13 +81,25 @@ new #[Layout('components.layouts.auth')] class extends Component {
 
     <form method="POST" wire:submit="login" class="flex flex-col gap-6">
         <!-- Email Address -->
-        <flux:input wire:model="email" :label="__('Email address')" type="email" required autofocus autocomplete="email"
-            placeholder="email@example.com" />
+        <div>
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">{{ __('Email address') }}</label>
+            <input wire:model="email" id="email" type="email" required autofocus autocomplete="email"
+                placeholder="email@example.com"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            @error('email')
+                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
 
         <!-- Password -->
         <div class="relative">
-            <flux:input wire:model="password" :label="__('Password')" type="password" required
-                autocomplete="current-password" :placeholder="__('Password')" viewable />
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">{{ __('Password') }}</label>
+            <input wire:model="password" id="password" type="password" required autocomplete="current-password"
+                placeholder="{{ __('Password') }}"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            @error('password')
+                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+            @enderror
 
             @if (Route::has('password.request'))
                 <a href="{{ route('password.request') }}" wire:navigate class="absolute end-0 top-0 text-sm"
@@ -98,7 +110,11 @@ new #[Layout('components.layouts.auth')] class extends Component {
         </div>
 
         <!-- Remember Me -->
-        <flux:checkbox wire:model="remember" :label="__('Remember me')" />
+        <div class="flex items-center">
+            <input wire:model="remember" id="remember" type="checkbox"
+                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+            <label for="remember" class="ml-2 block text-sm text-gray-700">{{ __('Remember me') }}</label>
+        </div>
 
         <div class="flex items-center justify-end">
             <button type="submit" class="w-full"

@@ -29,6 +29,9 @@ php artisan route:cache
 echo "Publishing Livewire assets..."
 php artisan livewire:publish --assets
 
+echo "Publishing Flux assets..."
+php artisan flux:publish
+
 echo "Setting permissions..."
 chown -R www-data:www-data /var/www/html/storage
 chown -R www-data:www-data /var/www/html/bootstrap/cache
