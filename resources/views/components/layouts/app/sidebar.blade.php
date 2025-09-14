@@ -19,7 +19,7 @@
         <nav class="flex-1 px-4 pb-4">
             <div class="space-y-1">
                 <h3 class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                    ヘルプデスク
+                    メニュー
                 </h3>
 
                 <a href="{{ route('dashboard') }}"
@@ -150,14 +150,6 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden">
-        <!-- Header -->
-        <header class="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
-            <div class="flex items-center justify-between">
-                <h1 class="text-xl font-semibold text-gray-900">
-                    {{ $title ?? 'ヘルプデスクシステム' }}
-                </h1>
-            </div>
-        </header>
 
         <!-- Page Content -->
         {{ $slot }}
