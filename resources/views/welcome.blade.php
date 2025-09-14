@@ -1844,7 +1844,7 @@
             <div class="flex flex-col gap-4 justify-center items-center">
                 @if (Route::has('login'))
                     @auth
-                        <a href="{{ url('/dashboard') }}"
+                        <a href="{{ route('dashboard') }}"
                             style="display: inline-flex; align-items: center; justify-content: center; padding: 10px 32px; font-size: 18px; font-weight: bold; color: #ffffff; background: linear-gradient(45deg, #2d2d2d, #1a1a1a); border: 2px solid #ffffff; border-radius: 12px; text-decoration: none; box-shadow: 0 10px 25px rgba(0,0,0,0.3); transition: all 0.3s ease; transform: scale(1);"
                             onmouseover="this.style.transform='scale(1.1) translateY(-4px)'; this.style.boxShadow='0 15px 35px rgba(0,0,0,0.4)'; this.style.background='linear-gradient(45deg, #1a1a1a, #0d0d0d)'"
                             onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 10px 25px rgba(0,0,0,0.3)'; this.style.background='linear-gradient(45deg, #2d2d2d, #1a1a1a)'">

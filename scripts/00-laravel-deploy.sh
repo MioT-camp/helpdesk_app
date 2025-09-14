@@ -14,6 +14,9 @@ php artisan config:clear
 php artisan route:clear
 php artisan view:clear
 
+echo "Creating session table..."
+php artisan session:table --force 2>/dev/null || echo "Session table already exists or not needed"
+
 echo "Running migrations..."
 php artisan migrate --force
 
