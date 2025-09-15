@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Volt;
 
 Route::get('/', function () {
-    if (Auth::check()) {
+    if (auth()->check()) {
         return redirect()->route('dashboard');
     }
     return redirect()->route('login');
